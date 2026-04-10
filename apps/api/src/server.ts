@@ -5,6 +5,7 @@ import helmet from 'helmet';
 
 import { errorHandler } from './middleware/error-handler';
 import ordersRouter from './routes/orders';
+import webhooksRouter from './routes/webhooks';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -37,6 +38,9 @@ app.get('/health', (_req, res) => {
 
 // ─── API routes ──────────────────────────────────────────────────────────────
 app.use('/api/v1/orders', ordersRouter);
+
+// ─── Webhook routes (external system callbacks) ─────────────────────────────
+app.use('/webhooks', webhooksRouter);
 
 // ─── Global error handler (must be last) ─────────────────────────────────────
 app.use(errorHandler);
