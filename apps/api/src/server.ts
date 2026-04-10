@@ -4,6 +4,7 @@ import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 
 import { errorHandler } from './middleware/error-handler';
+import custodyRouter from './routes/custody';
 import ordersRouter from './routes/orders';
 import webhooksRouter from './routes/webhooks';
 
@@ -38,6 +39,7 @@ app.get('/health', (_req, res) => {
 
 // ─── API routes ──────────────────────────────────────────────────────────────
 app.use('/api/v1/orders', ordersRouter);
+app.use('/api/v1/custody', custodyRouter);
 
 // ─── Webhook routes (external system callbacks) ─────────────────────────────
 app.use('/webhooks', webhooksRouter);
