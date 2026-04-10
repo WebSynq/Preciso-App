@@ -5,8 +5,9 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 
-import { SessionTimeoutProvider } from './session-timeout';
 import { signOutAction } from '../actions';
+
+import { SessionTimeoutProvider } from './session-timeout';
 
 const navItems = [
   { label: 'Dashboard', href: '/dashboard', icon: HomeIcon },

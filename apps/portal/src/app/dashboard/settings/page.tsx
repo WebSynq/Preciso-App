@@ -2,13 +2,13 @@
 
 import { useActionState, useEffect, useState } from 'react';
 
-import { createClient } from '@/lib/supabase/client';
-
 import {
   changePasswordAction,
   updateProfileAction,
   type SettingsState,
 } from './actions';
+
+import { createClient } from '@/lib/supabase/client';
 
 const profileInitial: SettingsState = {};
 const passwordInitial: SettingsState = {};

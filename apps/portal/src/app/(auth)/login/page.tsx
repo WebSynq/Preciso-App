@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { useActionState, useState } from 'react';
+import { Suspense, useActionState, useState } from 'react';
 
 import { loginAction, resetPasswordAction, type LoginState } from './actions';
 
@@ -10,6 +10,14 @@ const loginInitial: LoginState = {};
 const resetInitial: { success?: boolean; error?: string } = {};
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-gray-50"><p className="text-gray-400">Loading...</p></div>}>
+      <LoginPageContent />
+    </Suspense>
+  );
+}
+
+function LoginPageContent() {
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get('redirect') || '/dashboard';
   const callbackError = searchParams.get('error');

@@ -9,7 +9,8 @@
   "scripts": {
     "dev:portal": "npm run dev --workspace=apps/portal",
     "dev:api": "npm run dev --workspace=apps/api",
-    "build": "npm run build --workspaces --if-present",
+    "build": "npm run build -w packages/types && npm run build -w packages/schemas && npm run build -w packages/utils && npm run build -w apps/portal && npm run build -w apps/api",
+    "build:portal": "npm run build -w packages/types && npm run build -w packages/schemas && npm run build -w packages/utils && npm run build -w apps/portal",
     "lint": "eslint . --ext .ts,.tsx",
     "lint:fix": "eslint . --ext .ts,.tsx --fix",
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",

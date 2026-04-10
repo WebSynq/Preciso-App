@@ -2,10 +2,10 @@ import type { CustodyEvent, KitOrder, LabResult } from '@preciso/types';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
-import { createServerSupabaseClient } from '@/lib/supabase/server';
-
 import { CancelOrderButton } from './cancel-button';
 import { CustodyTimeline } from './custody-timeline';
+
+import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 export default async function OrderDetailPage({
   params,
