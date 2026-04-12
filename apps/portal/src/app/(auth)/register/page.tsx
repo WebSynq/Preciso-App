@@ -13,6 +13,35 @@ export default function RegisterPage() {
   );
   const [state, formAction, pending] = useActionState(registerAction, initialState);
 
+  // Email confirmation required — show a success/holding screen
+  if (state.awaitingConfirmation) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
+        <div className="w-full max-w-md text-center">
+          <div className="mb-6 flex justify-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-teal/10">
+              <svg className="h-8 w-8 text-teal" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+              </svg>
+            </div>
+          </div>
+          <h1 className="mb-2 text-2xl font-bold text-navy">Check your email</h1>
+          <p className="mb-6 text-gray-600">
+            We sent a confirmation link to your email address. Click the link to activate
+            your account and sign in.
+          </p>
+          <p className="text-sm text-gray-400">
+            Didn&apos;t receive it? Check your spam folder, or{' '}
+            <Link href="/register" className="font-medium text-teal hover:text-teal-700">
+              try again
+            </Link>
+            .
+          </p>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-12">
       <div className="w-full max-w-lg">

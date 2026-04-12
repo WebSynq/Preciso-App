@@ -3,17 +3,26 @@
 import { ProviderRegistrationSchema } from '@preciso/schemas';
 import { redirect } from 'next/navigation';
 
+import { createAdminSupabaseClient } from '@/lib/supabase/admin';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 export interface RegisterState {
   error?: string;
   fieldErrors?: Record<string, string[]>;
+  /** Set when registration succeeded but email confirmation is required */
+  awaitingConfirmation?: boolean;
 }
 
 /**
  * Server action for provider registration.
- * Creates Supabase auth user + inserts provider record.
- * Fires GHL contact creation webhook (Phase 3 wiring).
+ *
+ * Flow:
+ *   1. Validate input with Zod
+ *   2. Create Supabase auth user (may require email confirmation)
+ *   3. Insert provider profile using admin client (bypasses RLS so it
+ *      works whether or not the session exists yet)
+ *   4. If session exists (email confirmation off): redirect to dashboard
+ *   5. If no session (email confirmation on): return awaitingConfirmation=true
  */
 export async function registerAction(
   _prevState: RegisterState,
@@ -55,7 +64,7 @@ export async function registerAction(
   const data = parsed.data;
   const supabase = await createServerSupabaseClient();
 
-  // Create Supabase auth user
+  // Step 1 — Create Supabase auth user
   const { data: authData, error: authError } = await supabase.auth.signUp({
     email: data.email,
     password: data.password,
@@ -70,17 +79,19 @@ export async function registerAction(
   });
 
   if (authError) {
-    // Generic error — never reveal if email exists
-    return { error: 'Unable to create account. Please check your email for verification.' };
+    console.error('Registration auth error:', authError.message);
+    // Generic message — never reveal whether an email already exists
+    return { error: 'Unable to create account. Please try again or contact support.' };
   }
 
   if (!authData.user) {
-    return { error: 'Unable to create account. Please check your email for verification.' };
+    return { error: 'Unable to create account. Please try again or contact support.' };
   }
 
-  // Insert provider record using service role would be ideal,
-  // but with RLS insert policy allowing inserts, we can use the session client.
-  // The provider ID must match the auth user ID for RLS to work.
+  // Step 2 — Insert provider record using admin client so it succeeds
+  // regardless of whether email confirmation is required (no session yet).
+  const adminSupabase = createAdminSupabaseClient();
+
   const providerRecord: Record<string, unknown> = {
     id: authData.user.id,
     email: data.email,
@@ -96,7 +107,9 @@ export async function registerAction(
     providerRecord.organization = data.organization;
   }
 
-  const { error: insertError } = await supabase.from('providers').insert(providerRecord);
+  const { error: insertError } = await adminSupabase
+    .from('providers')
+    .insert(providerRecord);
 
   if (insertError) {
     console.error('Provider insert error:', insertError.message);
@@ -106,10 +119,15 @@ export async function registerAction(
   // TODO: Phase 3 — Fire GHL webhook to create contact
   // await createGhlContact({ email: data.email, firstName: data.firstName, ... });
 
-  // Redirect based on account type
-  if (data.accountType === 'hospital_admin') {
-    redirect('/dashboard/pending');
+  // Step 3 — If Supabase returned a session, email confirmation is disabled:
+  // redirect immediately. Otherwise, ask the user to check their email.
+  if (authData.session) {
+    if (data.accountType === 'hospital_admin') {
+      redirect('/dashboard/pending');
+    }
+    redirect('/dashboard');
   }
 
-  redirect('/dashboard');
+  // No session = email confirmation is required
+  return { awaitingConfirmation: true };
 }
