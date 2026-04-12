@@ -56,12 +56,25 @@ export const DeliveryAddressSchema = z.object({
 
 /** Schema for creating a new kit order */
 export const CreateKitOrderSchema = z.object({
+  // Alphanumeric characters, hyphens, and underscores only.
+  // Prevents special characters that could break downstream reporting systems
+  // or be used in injection attacks.
   patientRef: z
     .string()
     .min(1, 'Patient reference is required')
-    .max(100, 'Patient reference too long'),
+    .max(100, 'Patient reference too long')
+    .regex(
+      /^[A-Za-z0-9_-]+$/,
+      'Patient reference may only contain letters, numbers, hyphens, and underscores',
+    ),
   panelType: PanelTypeSchema,
-  clinicalNotes: z.string().max(2000, 'Clinical notes too long').optional(),
+  // clinicalNotes is stripped of leading/trailing whitespace; no HTML allowed.
+  clinicalNotes: z
+    .string()
+    .max(2000, 'Clinical notes too long')
+    .refine((v) => !/<[^>]+>/i.test(v), 'Clinical notes must not contain HTML tags')
+    .optional()
+    .transform((v) => v?.trim()),
   deliveryAddress: DeliveryAddressSchema,
 });
 

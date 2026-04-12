@@ -218,9 +218,13 @@ router.post('/lab/cenegenics', cenegenicsWebhookAuth, async (req, res) => {
   try {
     const payload = req.body as CenegenicsResultPayload;
 
+    // Log non-PHI metadata only — resultRef, flaggedValues, and reportUrl may contain PHI
     console.warn('[Webhook] Cenegenics result received', {
-      label: 'CENEGENICS_RESULT_PAYLOAD',
-      payload,
+      label: 'CENEGENICS_RESULT_RECEIVED',
+      orderId: payload.orderId,
+      kitBarcode: payload.kitBarcode,
+      resultStatus: payload.resultStatus,
+      completedAt: payload.completedAt,
       timestamp: new Date().toISOString(),
     });
 
@@ -278,9 +282,13 @@ router.post('/lab/sampled', sampledWebhookAuth, async (req, res) => {
   try {
     const payload = req.body as SampledResultPayload;
 
+    // Log non-PHI metadata only
     console.warn('[Webhook] Sampled result received', {
-      label: 'SAMPLED_RESULT_PAYLOAD',
-      payload,
+      label: 'SAMPLED_RESULT_RECEIVED',
+      orderId: payload.orderId,
+      kitBarcode: payload.kitBarcode,
+      resultStatus: payload.resultStatus,
+      completedAt: payload.completedAt,
       timestamp: new Date().toISOString(),
     });
 

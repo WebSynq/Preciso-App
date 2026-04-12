@@ -5,6 +5,16 @@ node_modules/
 dist/
 .next/
 out/
+*.tsbuildinfo
+# Stray compiled artifacts (tsc run with wrong outDir)
+apps/portal/src/**/*.js
+apps/portal/src/**/*.js.map
+apps/portal/src/**/*.d.ts
+apps/portal/src/**/*.d.ts.map
+apps/portal/tailwind.config.js
+apps/portal/tailwind.config.js.map
+apps/portal/tailwind.config.d.ts
+apps/portal/tailwind.config.d.ts.map
 
 # Environment variables
 .env

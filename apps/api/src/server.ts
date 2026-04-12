@@ -11,11 +11,34 @@ import webhooksRouter from './routes/webhooks';
 const app = express();
 const PORT = process.env.PORT || 4000;
 
+// ─── CORS origin validation ───────────────────────────────────────────────────
+// In production PORTAL_URL must be set and must use https://.
+// In local dev (NODE_ENV !== 'production') we fall back to localhost.
+const isProduction = process.env.NODE_ENV === 'production';
+const portalUrl = process.env.PORTAL_URL;
+
+if (isProduction && !portalUrl) {
+  console.error('[Server] FATAL: PORTAL_URL env var is not set in production. Exiting.');
+  process.exit(1);
+}
+
+if (isProduction && portalUrl && !portalUrl.startsWith('https://')) {
+  console.error('[Server] FATAL: PORTAL_URL must use https:// in production. Exiting.');
+  process.exit(1);
+}
+
+const corsOrigin = portalUrl || 'http://localhost:3000';
+
 // ─── Security middleware ─────────────────────────────────────────────────────
 app.use(helmet());
+
+// Trust the first proxy hop (AWS ALB/ELB) so req.ip reflects the real client IP
+// rather than the load balancer address. Needed for per-user rate limiting.
+app.set('trust proxy', 1);
+
 app.use(
   cors({
-    origin: process.env.PORTAL_URL || 'http://localhost:3000',
+    origin: corsOrigin,
     credentials: true,
   }),
 );
@@ -33,8 +56,9 @@ app.use(
 );
 
 // ─── Health check ────────────────────────────────────────────────────────────
+// Intentionally minimal — no timestamp or version info to limit recon surface.
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({ status: 'ok' });
 });
 
 // ─── API routes ──────────────────────────────────────────────────────────────

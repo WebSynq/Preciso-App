@@ -85,7 +85,7 @@ export default function OrderPage() {
         return;
       }
 
-      const idempotencyKey = `order_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      const idempotencyKey = crypto.randomUUID();
 
       const orderData: CreateKitOrderInput = {
         patientRef,

@@ -15,6 +15,8 @@
  *   - Sandbox/test environment URL
  */
 
+import { randomBytes } from 'crypto';
+
 import { v4 as uuidv4 } from 'uuid';
 
 export interface FirstSourceOrderPayload {
@@ -47,10 +49,11 @@ export interface FirstSourceOrderResponse {
 export async function submitOrder(
   payload: FirstSourceOrderPayload,
 ): Promise<FirstSourceOrderResponse> {
-  // Log the full payload for future reference when building live integration
-  console.warn('[FirstSource STUB] Order submitted — payload logged for documentation', {
+  // Log non-PHI metadata only — delivery address and internalRef are PHI and must not be logged
+  console.warn('[FirstSource STUB] Order submitted', {
     label: 'FIRSTSOURCE_ORDER_PAYLOAD',
-    payload,
+    providerNpi: payload.providerNpi,
+    panelType: payload.panelType,
     timestamp: new Date().toISOString(),
   });
 
@@ -59,7 +62,7 @@ export async function submitOrder(
 
   const mockResponse: FirstSourceOrderResponse = {
     orderId: `FS-${uuidv4().slice(0, 8).toUpperCase()}`,
-    kitBarcode: `KIT-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
+    kitBarcode: `KIT-${randomBytes(6).toString('hex').toUpperCase()}`,
     estimatedShipDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]!,
   };
 

@@ -6,6 +6,47 @@ import { createAdminClient } from '../lib/supabase';
 import { writeAuditLog } from './audit-logger';
 
 /**
+ * Allowlisted hostnames that are permitted as report URL sources.
+ * Add each lab partner's domain here when integrating live APIs.
+ */
+const ALLOWED_REPORT_HOSTS = new Set([
+  'results.cenegenics.com',
+  'portal.cenegenics.com',
+  'api.sampled.com',
+  'results.sampled.com',
+]);
+
+/**
+ * Validates that a report URL is safe to store:
+ *  - Must use https:// (no javascript:, data:, http:, etc.)
+ *  - Hostname must be in the allowlist
+ * Returns the validated URL string, or null if invalid.
+ */
+function validateReportUrl(raw: string | undefined): string | null {
+  if (!raw) return null;
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    console.error('[ResultProcessor] reportUrl failed URL parse — rejected', { raw });
+    return null;
+  }
+  if (parsed.protocol !== 'https:') {
+    console.error('[ResultProcessor] reportUrl uses non-https scheme — rejected', {
+      scheme: parsed.protocol,
+    });
+    return null;
+  }
+  if (!ALLOWED_REPORT_HOSTS.has(parsed.hostname)) {
+    console.error('[ResultProcessor] reportUrl hostname not allowlisted — rejected', {
+      hostname: parsed.hostname,
+    });
+    return null;
+  }
+  return parsed.toString();
+}
+
+/**
  * Payload shape for processing a lab result.
  */
 export interface LabResultPayload {
@@ -68,6 +109,9 @@ export async function processLabResult(payload: LabResultPayload): Promise<{
     const ghlOpportunityId = kitOrder.ghl_opportunity_id as string | null;
 
     // Step 2: Insert lab_results record
+    // Validate reportUrl before storage to prevent XSS and SSRF via stored URLs.
+    const safeReportUrl = validateReportUrl(payload.reportUrl);
+
     const { data: labResult, error: insertError } = await supabase
       .from('lab_results')
       .insert({
@@ -75,7 +119,7 @@ export async function processLabResult(payload: LabResultPayload): Promise<{
         lab_partner: payload.labPartner,
         result_status: payload.resultStatus,
         result_received_at: payload.completedAt,
-        report_url: payload.reportUrl || null,
+        report_url: safeReportUrl,
         raw_result_ref: payload.resultRef,
       })
       .select('id')
@@ -116,7 +160,7 @@ export async function processLabResult(payload: LabResultPayload): Promise<{
         await updateOpportunityStage(ghlOpportunityId, 'report_ready');
         await updateOpportunityFields(ghlOpportunityId, {
           preciso_order_status: newStatus,
-          preciso_report_url: payload.reportUrl || '',
+          preciso_report_url: safeReportUrl || '',
           preciso_result_date: payload.completedAt,
           preciso_flagged: payload.flaggedValues && payload.flaggedValues.length > 0 ? 'true' : 'false',
         });
@@ -136,8 +180,7 @@ export async function processLabResult(payload: LabResultPayload): Promise<{
         details: {
           labPartner: payload.labPartner,
           resultStatus: payload.resultStatus,
-          resultRef: payload.resultRef,
-          reportUrl: payload.reportUrl || '',
+          // resultRef and reportUrl intentionally omitted — may contain PHI
         },
         timestamp: new Date().toISOString(),
       });
