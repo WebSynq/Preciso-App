@@ -11,11 +11,12 @@ export default async function OrderDetailPage({
   params,
   searchParams,
 }: {
-  params: { orderId: string };
-  searchParams: { success?: string };
+  params: Promise<{ orderId: string }>;
+  searchParams: Promise<{ success?: string }>;
 }) {
-  const supabase = createServerSupabaseClient();
-  const { orderId } = params;
+  const supabase = await createServerSupabaseClient();
+  const { orderId } = await params;
+  const resolvedSearch = await searchParams;
 
   const { data: order, error } = await supabase
     .from('kit_orders')
@@ -62,7 +63,7 @@ export default async function OrderDetailPage({
 
   return (
     <div className="mx-auto max-w-3xl">
-      {searchParams.success && (
+      {resolvedSearch.success && (
         <div className="mb-6 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
           Order submitted successfully! Your kit will be shipped soon.
         </div>

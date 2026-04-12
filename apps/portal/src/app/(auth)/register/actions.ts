@@ -53,7 +53,7 @@ export async function registerAction(
   }
 
   const data = parsed.data;
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   // Create Supabase auth user
   const { data: authData, error: authError } = await supabase.auth.signUp({

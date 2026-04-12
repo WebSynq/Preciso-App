@@ -8,7 +8,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
  * Server action to sign out the current user.
  */
 export async function signOutAction() {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   await supabase.auth.signOut();
   redirect('/login');
 }

@@ -14,7 +14,7 @@ export async function updateProfileAction(
   _prevState: SettingsState,
   formData: FormData,
 ): Promise<SettingsState> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const {
     data: { user },
@@ -55,7 +55,7 @@ export async function changePasswordAction(
   _prevState: SettingsState,
   formData: FormData,
 ): Promise<SettingsState> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const newPassword = formData.get('newPassword') as string;
   const confirmPassword = formData.get('confirmPassword') as string;
 

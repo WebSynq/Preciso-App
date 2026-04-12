@@ -25,8 +25,8 @@ export function useSessionTimeout() {
 export function SessionTimeoutProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [showWarning, setShowWarning] = useState(false);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
-  const warningRef = useRef<ReturnType<typeof setTimeout>>();
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const warningRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const handleLogout = useCallback(async () => {
     const supabase = createClient();

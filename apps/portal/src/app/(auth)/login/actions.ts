@@ -24,7 +24,7 @@ export async function loginAction(
     return { error: 'Email and password are required.' };
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { error } = await supabase.auth.signInWithPassword({ email, password });
 
@@ -50,7 +50,7 @@ export async function resetPasswordAction(
     return { error: 'Please enter your email address.' };
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: `${process.env.PORTAL_URL || 'http://localhost:3000'}/auth/callback?next=/dashboard/settings`,

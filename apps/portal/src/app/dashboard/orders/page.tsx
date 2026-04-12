@@ -20,10 +20,11 @@ const STATUS_COLORS: Record<string, string> = {
 export default async function OrdersPage({
   searchParams,
 }: {
-  searchParams: { page?: string };
+  searchParams: Promise<{ page?: string }>;
 }) {
-  const supabase = createServerSupabaseClient();
-  const page = Math.max(1, parseInt(searchParams.page || '1'));
+  const supabase = await createServerSupabaseClient();
+  const resolvedSearch = await searchParams;
+  const page = Math.max(1, parseInt(resolvedSearch.page || '1'));
   const limit = 20;
   const offset = (page - 1) * limit;
 

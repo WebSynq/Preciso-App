@@ -5,7 +5,7 @@ import { DashboardShell } from './components/dashboard-shell';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const {
     data: { user },
