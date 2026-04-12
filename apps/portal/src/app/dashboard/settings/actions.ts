@@ -87,3 +87,37 @@ export async function changePasswordAction(
 
   return { success: true };
 }
+
+/**
+ * Server action to save notification preferences.
+ */
+export async function updateNotificationsAction(
+  _prevState: SettingsState,
+  formData: FormData,
+): Promise<SettingsState> {
+  const supabase = await createServerSupabaseClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: 'Not authenticated.' };
+  }
+
+  const { error } = await supabase
+    .from('providers')
+    .update({
+      notif_email_order_confirmed: formData.get('notif_email_order_confirmed') === 'on',
+      notif_email_result_ready: formData.get('notif_email_result_ready') === 'on',
+      notif_sms_order_confirmed: formData.get('notif_sms_order_confirmed') === 'on',
+      notif_sms_result_ready: formData.get('notif_sms_result_ready') === 'on',
+    })
+    .eq('id', user.id);
+
+  if (error) {
+    return { error: 'Failed to save notification preferences. Please try again.' };
+  }
+
+  return { success: true };
+}
