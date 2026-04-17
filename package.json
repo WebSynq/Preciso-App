@@ -9,10 +9,12 @@
   "scripts": {
     "dev:portal": "npm run dev --workspace=apps/portal",
     "dev:admin": "npm run dev --workspace=apps/admin",
+    "dev:dev": "npm run dev --workspace=apps/dev",
     "dev:api": "npm run dev --workspace=apps/api",
-    "build": "npm run build -w packages/types && npm run build -w packages/schemas && npm run build -w packages/utils && npm run build -w apps/portal && npm run build -w apps/admin && npm run build -w apps/api",
+    "build": "npm run build -w packages/types && npm run build -w packages/schemas && npm run build -w packages/utils && npm run build -w apps/portal && npm run build -w apps/admin && npm run build -w apps/dev && npm run build -w apps/api",
     "build:portal": "npm run build -w packages/types && npm run build -w packages/schemas && npm run build -w packages/utils && npm run build -w apps/portal",
     "build:admin": "npm run build -w packages/types && npm run build -w packages/schemas && npm run build -w packages/utils && npm run build -w apps/admin",
+    "build:dev": "npm run build -w packages/types && npm run build -w packages/schemas && npm run build -w packages/utils && npm run build -w apps/dev",
     "lint": "eslint . --ext .ts,.tsx",
     "lint:fix": "eslint . --ext .ts,.tsx --fix",
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
