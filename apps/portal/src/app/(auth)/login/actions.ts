@@ -29,10 +29,16 @@ export async function loginAction(
   const { error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
+    console.error('[loginAction] supabase.auth.signInWithPassword failed', {
+      message: error.message,
+      status: error.status,
+      code: error.code,
+    });
     // Generic error — never reveal whether email exists or if locked out
     return { error: 'Invalid email or password. Please try again.' };
   }
 
+  console.warn('[loginAction] sign-in succeeded, redirecting', { redirectTo });
   redirect(redirectTo);
 }
 
