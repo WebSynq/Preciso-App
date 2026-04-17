@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { Suspense, useState, type FormEvent } from 'react';
 
 import { createClient } from '@/lib/supabase/client';
@@ -21,7 +21,6 @@ export default function LoginPage() {
 }
 
 function LoginPageContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get('redirect') || '/dashboard';
   const callbackError = searchParams.get('error');
@@ -61,8 +60,13 @@ function LoginPageContent() {
         setLoginError('Invalid email or password. Please try again.');
         return;
       }
-      router.replace(redirectTo);
-      router.refresh();
+      // SECURITY NOTE: Use a hard navigation (full page load) instead of
+      // router.replace so the browser re-issues the request with the freshly
+      // written auth cookies. Next's client router can race ahead of the
+      // cookie write on @supabase/ssr 0.3, which leaves middleware without a
+      // session and bounces us back to /login.
+      window.location.assign(redirectTo);
+      return;
     } catch (err) {
       console.error('[login] unexpected error', err);
       setLoginError('Unable to sign in right now. Please try again.');
