@@ -21,14 +21,17 @@ export function createClient() {
       cookies: {
         getAll() {
           if (typeof document === 'undefined') return [];
+          // SECURITY NOTE: Read raw values — do NOT decodeURIComponent.
+          // @supabase/ssr's server-side reader also reads raw values, so
+          // both sides must agree. Double-decoding corrupts the JSON.
           return document.cookie
             .split(';')
             .map((c) => c.trim())
             .filter(Boolean)
             .map((c) => {
               const eq = c.indexOf('=');
-              const name = decodeURIComponent(eq === -1 ? c : c.slice(0, eq));
-              const value = eq === -1 ? '' : decodeURIComponent(c.slice(eq + 1));
+              const name = eq === -1 ? c : c.slice(0, eq);
+              const value = eq === -1 ? '' : c.slice(eq + 1);
               return { name, value };
             });
         },
@@ -36,7 +39,11 @@ export function createClient() {
           if (typeof document === 'undefined') return;
           const isHttps = window.location.protocol === 'https:';
           for (const { name, value, options } of cookiesToSet) {
-            let cookie = `${encodeURIComponent(name)}=${encodeURIComponent(value)}`;
+            // SECURITY NOTE: Write raw values — do NOT encodeURIComponent.
+            // Supabase session JSON contains `{`, `"`, `:` which are valid
+            // cookie octets; URL-encoding them produces `%7B%22...` which
+            // the server-side reader can't parse back to JSON.
+            let cookie = `${name}=${value}`;
             if (options?.maxAge !== undefined) cookie += `; Max-Age=${options.maxAge}`;
             if (options?.expires) {
               const exp =
@@ -45,8 +52,8 @@ export function createClient() {
             }
             cookie += `; Path=${options?.path || '/'}`;
             if (options?.domain) cookie += `; Domain=${options.domain}`;
-            // SECURITY NOTE: Only set Secure on HTTPS. Browsers discard
-            // Secure cookies on http://, which would break localhost dev.
+            // Only set Secure on HTTPS. Browsers discard Secure cookies on
+            // http://, which would break localhost dev.
             if (options?.secure && isHttps) cookie += '; Secure';
             cookie += `; SameSite=${options?.sameSite || 'Lax'}`;
             document.cookie = cookie;
