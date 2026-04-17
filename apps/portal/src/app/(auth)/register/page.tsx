@@ -51,25 +51,25 @@ export default function RegisterPage() {
         <form action={formAction} className="rounded-xl border border-gray-200 bg-white p-8 shadow-sm">
           <input type="hidden" name="accountType" value={accountType} />
 
-          {state.error && (
+          {state?.error && (
             <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {state.error}
+              {state?.error}
             </div>
           )}
 
           {/* Common fields */}
           <div className="mb-4 grid grid-cols-2 gap-4">
-            <FieldInput name="firstName" label="First Name" errors={state.fieldErrors} required />
-            <FieldInput name="lastName" label="Last Name" errors={state.fieldErrors} required />
+            <FieldInput name="firstName" label="First Name" errors={state?.fieldErrors} required />
+            <FieldInput name="lastName" label="Last Name" errors={state?.fieldErrors} required />
           </div>
 
-          <FieldInput name="email" label="Email Address" type="email" errors={state.fieldErrors} required />
+          <FieldInput name="email" label="Email Address" type="email" errors={state?.fieldErrors} required />
 
           <FieldInput
             name="password"
             label="Password"
             type="password"
-            errors={state.fieldErrors}
+            errors={state?.fieldErrors}
             required
             hint="Min 12 characters, 1 uppercase, 1 number, 1 special character"
           />
@@ -77,22 +77,22 @@ export default function RegisterPage() {
           {/* Clinician-specific fields */}
           {accountType === 'individual_clinician' && (
             <>
-              <FieldInput name="npiNumber" label="NPI Number" errors={state.fieldErrors} required hint="10-digit NPI" />
-              <FieldInput name="specialty" label="Specialty" errors={state.fieldErrors} required />
-              <FieldInput name="stateLicense" label="State License Number" errors={state.fieldErrors} required />
+              <FieldInput name="npiNumber" label="NPI Number" errors={state?.fieldErrors} required hint="10-digit NPI" />
+              <FieldInput name="specialty" label="Specialty" errors={state?.fieldErrors} required />
+              <FieldInput name="stateLicense" label="State License Number" errors={state?.fieldErrors} required />
             </>
           )}
 
           {/* Hospital-specific fields */}
           {accountType === 'hospital_admin' && (
             <>
-              <FieldInput name="organization" label="Organization Name" errors={state.fieldErrors} required />
-              <FieldInput name="institutionType" label="Institution Type" errors={state.fieldErrors} required />
+              <FieldInput name="organization" label="Organization Name" errors={state?.fieldErrors} required />
+              <FieldInput name="institutionType" label="Institution Type" errors={state?.fieldErrors} required />
               <FieldInput
                 name="estimatedMonthlyVolume"
                 label="Estimated Monthly Order Volume"
                 type="number"
-                errors={state.fieldErrors}
+                errors={state?.fieldErrors}
                 required
               />
               <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">

@@ -50,9 +50,9 @@ function LoginPageContent() {
           >
             <input type="hidden" name="redirect" value={redirectTo} />
 
-            {loginState.error && (
+            {loginState?.error && (
               <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                {loginState.error}
+                {loginState?.error}
               </div>
             )}
 
@@ -112,15 +112,15 @@ function LoginPageContent() {
             action={resetFormAction}
             className="rounded-xl border border-gray-200 bg-white p-8 shadow-sm"
           >
-            {resetState.success ? (
+            {resetState?.success ? (
               <div className="mb-6 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
                 If an account exists with that email, you will receive a password reset link.
               </div>
             ) : (
               <>
-                {resetState.error && (
+                {resetState?.error && (
                   <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                    {resetState.error}
+                    {resetState?.error}
                   </div>
                 )}
 

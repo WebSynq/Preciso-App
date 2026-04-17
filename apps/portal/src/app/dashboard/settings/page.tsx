@@ -59,14 +59,14 @@ export default function SettingsPage() {
       <section className="mb-8 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <h2 className="mb-4 text-lg font-semibold text-navy">Profile Information</h2>
 
-        {profileState.success && (
+        {profileState?.success && (
           <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
             Profile updated successfully.
           </div>
         )}
-        {profileState.error && (
+        {profileState?.error && (
           <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {profileState.error}
+            {profileState?.error}
           </div>
         )}
 
@@ -148,14 +148,14 @@ export default function SettingsPage() {
       <section className="mb-8 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <h2 className="mb-4 text-lg font-semibold text-navy">Change Password</h2>
 
-        {passwordState.success && (
+        {passwordState?.success && (
           <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
             Password updated successfully.
           </div>
         )}
-        {passwordState.error && (
+        {passwordState?.error && (
           <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {passwordState.error}
+            {passwordState?.error}
           </div>
         )}
 
