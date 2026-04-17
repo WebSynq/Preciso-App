@@ -49,6 +49,21 @@ function LoginPageContent() {
 
     try {
       const supabase = createClient();
+
+      // SECURITY NOTE: Wait for SIGNED_IN before navigating so the cookie has
+      // definitely been written to document.cookie. Otherwise the hard nav
+      // can race the cookie write and middleware sees no session.
+      const navigated = new Promise<void>((resolve) => {
+        const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+          if (event === 'SIGNED_IN') {
+            sub.subscription.unsubscribe();
+            console.warn('[login] SIGNED_IN received, hard-navigating', { redirectTo });
+            window.location.assign(redirectTo);
+            resolve();
+          }
+        });
+      });
+
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
         console.error('[login] signInWithPassword failed', {
@@ -56,16 +71,11 @@ function LoginPageContent() {
           status: error.status,
           code: error.code,
         });
-        // Generic error — never reveal whether email exists or if locked out
         setLoginError('Invalid email or password. Please try again.');
         return;
       }
-      // SECURITY NOTE: Use a hard navigation (full page load) instead of
-      // router.replace so the browser re-issues the request with the freshly
-      // written auth cookies. Next's client router can race ahead of the
-      // cookie write on @supabase/ssr 0.3, which leaves middleware without a
-      // session and bounces us back to /login.
-      window.location.assign(redirectTo);
+
+      await navigated;
       return;
     } catch (err) {
       console.error('[login] unexpected error', err);

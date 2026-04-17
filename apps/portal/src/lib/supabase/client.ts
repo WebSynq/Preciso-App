@@ -4,12 +4,14 @@ import { createBrowserClient, type CookieOptions } from '@supabase/ssr';
  * Creates a Supabase client for use in browser/client components.
  * Uses the anon key — RLS policies govern data access.
  *
- * SECURITY NOTE: We pass explicit `cookies` handlers so the auth session is
- * persisted to document.cookie (not just localStorage). This is what lets
- * Next.js middleware and server components see the session on the next
- * request. Without this, @supabase/ssr 0.3's default leaves the session in
- * localStorage only, and middleware redirect-loops back to /login after
- * sign-in.
+ * SECURITY NOTE: Explicit `cookies` handlers persist the auth session to
+ * document.cookie so Next.js middleware and server components can see it.
+ * Without this, @supabase/ssr 0.3 may leave the session in localStorage only
+ * and middleware redirect-loops back to /login after sign-in.
+ *
+ * We strip the `Secure` flag on non-HTTPS origins (localhost dev) because
+ * browsers silently discard Secure cookies on http://. In production the
+ * portal runs on HTTPS so Secure stays off only in dev.
  */
 export function createClient() {
   return createBrowserClient(
@@ -32,6 +34,7 @@ export function createClient() {
         },
         setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
           if (typeof document === 'undefined') return;
+          const isHttps = window.location.protocol === 'https:';
           for (const { name, value, options } of cookiesToSet) {
             let cookie = `${encodeURIComponent(name)}=${encodeURIComponent(value)}`;
             if (options?.maxAge !== undefined) cookie += `; Max-Age=${options.maxAge}`;
@@ -42,10 +45,16 @@ export function createClient() {
             }
             cookie += `; Path=${options?.path || '/'}`;
             if (options?.domain) cookie += `; Domain=${options.domain}`;
-            if (options?.secure) cookie += '; Secure';
+            // SECURITY NOTE: Only set Secure on HTTPS. Browsers discard
+            // Secure cookies on http://, which would break localhost dev.
+            if (options?.secure && isHttps) cookie += '; Secure';
             cookie += `; SameSite=${options?.sameSite || 'Lax'}`;
             document.cookie = cookie;
           }
+          console.warn('[supabase/browser] wrote cookies', {
+            names: cookiesToSet.map((c) => c.name),
+            count: cookiesToSet.length,
+          });
         },
       },
     },
