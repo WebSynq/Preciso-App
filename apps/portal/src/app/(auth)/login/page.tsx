@@ -33,11 +33,6 @@ function LoginPageContent() {
   const [resetError, setResetError] = useState<string | null>(null);
   const [resetPending, setResetPending] = useState(false);
 
-  // SECURITY NOTE: Sign-in runs in the browser so @supabase/ssr writes the
-  // auth cookie via the browser client. A server-action flow with redirect()
-  // drops the cookie under Next 14.2 + @supabase/ssr 0.3 and middleware
-  // bounces back to /login. Keep this client-side until the SSR helper is
-  // upgraded and verified end-to-end.
   async function handleLogin(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoginError(null);
@@ -49,21 +44,6 @@ function LoginPageContent() {
 
     try {
       const supabase = createClient();
-
-      // SECURITY NOTE: Wait for SIGNED_IN before navigating so the cookie has
-      // definitely been written to document.cookie. Otherwise the hard nav
-      // can race the cookie write and middleware sees no session.
-      const navigated = new Promise<void>((resolve) => {
-        const { data: sub } = supabase.auth.onAuthStateChange((event) => {
-          if (event === 'SIGNED_IN') {
-            sub.subscription.unsubscribe();
-            console.warn('[login] SIGNED_IN received, hard-navigating', { redirectTo });
-            window.location.assign(redirectTo);
-            resolve();
-          }
-        });
-      });
-
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
         console.error('[login] signInWithPassword failed', {
@@ -74,9 +54,9 @@ function LoginPageContent() {
         setLoginError('Invalid email or password. Please try again.');
         return;
       }
-
-      await navigated;
-      return;
+      // SECURITY NOTE: Hard navigation so the browser re-issues the request
+      // with the fresh auth cookies attached; middleware then sees the session.
+      window.location.assign(redirectTo);
     } catch (err) {
       console.error('[login] unexpected error', err);
       setLoginError('Unable to sign in right now. Please try again.');
