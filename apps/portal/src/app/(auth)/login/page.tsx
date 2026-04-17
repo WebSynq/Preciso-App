@@ -1,31 +1,100 @@
 'use client';
 
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
-import { Suspense, useState } from 'react';
-import { useFormState, useFormStatus } from 'react-dom';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useState, type FormEvent } from 'react';
 
-import { loginAction, resetPasswordAction, type LoginState } from './actions';
-
-const loginInitial: LoginState = {};
-const resetInitial: { success?: boolean; error?: string } = {};
+import { createClient } from '@/lib/supabase/client';
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-gray-50"><p className="text-gray-400">Loading...</p></div>}>
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-gray-50">
+          <p className="text-gray-400">Loading...</p>
+        </div>
+      }
+    >
       <LoginPageContent />
     </Suspense>
   );
 }
 
 function LoginPageContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get('redirect') || '/dashboard';
   const callbackError = searchParams.get('error');
 
   const [showReset, setShowReset] = useState(false);
-  const [loginState, loginFormAction] = useFormState(loginAction, loginInitial);
-  const [resetState, resetFormAction] = useFormState(resetPasswordAction, resetInitial);
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [loginPending, setLoginPending] = useState(false);
+
+  const [resetSuccess, setResetSuccess] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
+  const [resetPending, setResetPending] = useState(false);
+
+  // SECURITY NOTE: Sign-in runs in the browser so @supabase/ssr writes the
+  // auth cookie via the browser client. A server-action flow with redirect()
+  // drops the cookie under Next 14.2 + @supabase/ssr 0.3 and middleware
+  // bounces back to /login. Keep this client-side until the SSR helper is
+  // upgraded and verified end-to-end.
+  async function handleLogin(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setLoginError(null);
+    setLoginPending(true);
+
+    const form = new FormData(e.currentTarget);
+    const email = String(form.get('email') || '');
+    const password = String(form.get('password') || '');
+
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        console.error('[login] signInWithPassword failed', {
+          message: error.message,
+          status: error.status,
+          code: error.code,
+        });
+        // Generic error — never reveal whether email exists or if locked out
+        setLoginError('Invalid email or password. Please try again.');
+        return;
+      }
+      router.replace(redirectTo);
+      router.refresh();
+    } catch (err) {
+      console.error('[login] unexpected error', err);
+      setLoginError('Unable to sign in right now. Please try again.');
+    } finally {
+      setLoginPending(false);
+    }
+  }
+
+  async function handleReset(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setResetError(null);
+    setResetSuccess(false);
+    setResetPending(true);
+
+    const form = new FormData(e.currentTarget);
+    const email = String(form.get('email') || '');
+
+    try {
+      const supabase = createClient();
+      await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth/callback?next=/dashboard/settings`,
+      });
+      // Always show success — never reveal whether the email exists
+      setResetSuccess(true);
+    } catch (err) {
+      console.error('[login] reset error', err);
+      // Still show success to avoid leaking account existence
+      setResetSuccess(true);
+    } finally {
+      setResetPending(false);
+    }
+  }
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
@@ -45,14 +114,12 @@ function LoginPageContent() {
 
         {!showReset ? (
           <form
-            action={loginFormAction}
+            onSubmit={handleLogin}
             className="rounded-xl border border-gray-200 bg-white p-8 shadow-sm"
           >
-            <input type="hidden" name="redirect" value={redirectTo} />
-
-            {loginState?.error && (
+            {loginError && (
               <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                {loginState?.error}
+                {loginError}
               </div>
             )}
 
@@ -94,11 +161,13 @@ function LoginPageContent() {
               </button>
             </div>
 
-            <SubmitButton
-              idle="Sign In"
-              busy="Signing in..."
+            <button
+              type="submit"
+              disabled={loginPending}
               className="w-full rounded-lg bg-teal px-4 py-3 font-medium text-white transition hover:bg-teal-600 disabled:cursor-not-allowed disabled:opacity-50"
-            />
+            >
+              {loginPending ? 'Signing in...' : 'Sign In'}
+            </button>
 
             <p className="mt-6 text-center text-sm text-gray-500">
               Don&apos;t have an account?{' '}
@@ -109,18 +178,18 @@ function LoginPageContent() {
           </form>
         ) : (
           <form
-            action={resetFormAction}
+            onSubmit={handleReset}
             className="rounded-xl border border-gray-200 bg-white p-8 shadow-sm"
           >
-            {resetState?.success ? (
+            {resetSuccess ? (
               <div className="mb-6 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
                 If an account exists with that email, you will receive a password reset link.
               </div>
             ) : (
               <>
-                {resetState?.error && (
+                {resetError && (
                   <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                    {resetState?.error}
+                    {resetError}
                   </div>
                 )}
 
@@ -140,11 +209,13 @@ function LoginPageContent() {
                   />
                 </div>
 
-                <SubmitButton
-                  idle="Send Reset Link"
-                  busy="Sending..."
+                <button
+                  type="submit"
+                  disabled={resetPending}
                   className="w-full rounded-lg bg-teal px-4 py-3 font-medium text-white transition hover:bg-teal-600 disabled:cursor-not-allowed disabled:opacity-50"
-                />
+                >
+                  {resetPending ? 'Sending...' : 'Send Reset Link'}
+                </button>
               </>
             )}
 
@@ -159,22 +230,5 @@ function LoginPageContent() {
         )}
       </div>
     </main>
-  );
-}
-
-function SubmitButton({
-  idle,
-  busy,
-  className,
-}: {
-  idle: string;
-  busy: string;
-  className: string;
-}) {
-  const { pending } = useFormStatus();
-  return (
-    <button type="submit" disabled={pending} className={className}>
-      {pending ? busy : idle}
-    </button>
   );
 }
