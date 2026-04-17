@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useActionState, useState } from 'react';
+import { useState } from 'react';
+import { useFormState, useFormStatus } from 'react-dom';
 
 import { registerAction, type RegisterState } from './actions';
 
@@ -11,7 +12,7 @@ export default function RegisterPage() {
   const [accountType, setAccountType] = useState<'individual_clinician' | 'hospital_admin'>(
     'individual_clinician',
   );
-  const [state, formAction, pending] = useActionState(registerAction, initialState);
+  const [state, formAction] = useFormState(registerAction, initialState);
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-12">
@@ -101,13 +102,11 @@ export default function RegisterPage() {
             </>
           )}
 
-          <button
-            type="submit"
-            disabled={pending}
+          <SubmitButton
+            idle="Create Account"
+            busy="Creating Account..."
             className="mt-2 w-full rounded-lg bg-teal px-4 py-3 font-medium text-white transition hover:bg-teal-600 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {pending ? 'Creating Account...' : 'Create Account'}
-          </button>
+          />
 
           <p className="mt-6 text-center text-sm text-gray-500">
             Already have an account?{' '}
@@ -118,6 +117,23 @@ export default function RegisterPage() {
         </form>
       </div>
     </main>
+  );
+}
+
+function SubmitButton({
+  idle,
+  busy,
+  className,
+}: {
+  idle: string;
+  busy: string;
+  className: string;
+}) {
+  const { pending } = useFormStatus();
+  return (
+    <button type="submit" disabled={pending} className={className}>
+      {pending ? busy : idle}
+    </button>
   );
 }
 

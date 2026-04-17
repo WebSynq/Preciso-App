@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Suspense, useActionState, useState } from 'react';
+import { Suspense, useState } from 'react';
+import { useFormState, useFormStatus } from 'react-dom';
 
 import { loginAction, resetPasswordAction, type LoginState } from './actions';
 
@@ -23,11 +24,8 @@ function LoginPageContent() {
   const callbackError = searchParams.get('error');
 
   const [showReset, setShowReset] = useState(false);
-  const [loginState, loginFormAction, loginPending] = useActionState(loginAction, loginInitial);
-  const [resetState, resetFormAction, resetPending] = useActionState(
-    resetPasswordAction,
-    resetInitial,
-  );
+  const [loginState, loginFormAction] = useFormState(loginAction, loginInitial);
+  const [resetState, resetFormAction] = useFormState(resetPasswordAction, resetInitial);
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
@@ -96,13 +94,11 @@ function LoginPageContent() {
               </button>
             </div>
 
-            <button
-              type="submit"
-              disabled={loginPending}
+            <SubmitButton
+              idle="Sign In"
+              busy="Signing in..."
               className="w-full rounded-lg bg-teal px-4 py-3 font-medium text-white transition hover:bg-teal-600 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {loginPending ? 'Signing in...' : 'Sign In'}
-            </button>
+            />
 
             <p className="mt-6 text-center text-sm text-gray-500">
               Don&apos;t have an account?{' '}
@@ -144,13 +140,11 @@ function LoginPageContent() {
                   />
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={resetPending}
+                <SubmitButton
+                  idle="Send Reset Link"
+                  busy="Sending..."
                   className="w-full rounded-lg bg-teal px-4 py-3 font-medium text-white transition hover:bg-teal-600 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {resetPending ? 'Sending...' : 'Send Reset Link'}
-                </button>
+                />
               </>
             )}
 
@@ -165,5 +159,22 @@ function LoginPageContent() {
         )}
       </div>
     </main>
+  );
+}
+
+function SubmitButton({
+  idle,
+  busy,
+  className,
+}: {
+  idle: string;
+  busy: string;
+  className: string;
+}) {
+  const { pending } = useFormStatus();
+  return (
+    <button type="submit" disabled={pending} className={className}>
+      {pending ? busy : idle}
+    </button>
   );
 }

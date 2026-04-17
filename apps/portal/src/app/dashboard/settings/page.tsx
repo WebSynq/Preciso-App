@@ -1,6 +1,7 @@
 'use client';
 
-import { useActionState, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useFormState, useFormStatus } from 'react-dom';
 
 import {
   changePasswordAction,
@@ -14,14 +15,8 @@ const profileInitial: SettingsState = {};
 const passwordInitial: SettingsState = {};
 
 export default function SettingsPage() {
-  const [profileState, profileAction, profilePending] = useActionState(
-    updateProfileAction,
-    profileInitial,
-  );
-  const [passwordState, passwordAction, passwordPending] = useActionState(
-    changePasswordAction,
-    passwordInitial,
-  );
+  const [profileState, profileAction] = useFormState(updateProfileAction, profileInitial);
+  const [passwordState, passwordAction] = useFormState(changePasswordAction, passwordInitial);
 
   const [provider, setProvider] = useState<{
     first_name: string | null;
@@ -141,13 +136,11 @@ export default function SettingsPage() {
             </div>
           )}
 
-          <button
-            type="submit"
-            disabled={profilePending}
+          <SubmitButton
+            idle="Save Changes"
+            busy="Saving..."
             className="rounded-lg bg-teal px-5 py-2.5 text-sm font-medium text-white transition hover:bg-teal-600 disabled:opacity-50"
-          >
-            {profilePending ? 'Saving...' : 'Save Changes'}
-          </button>
+          />
         </form>
       </section>
 
@@ -199,13 +192,11 @@ export default function SettingsPage() {
             />
           </div>
 
-          <button
-            type="submit"
-            disabled={passwordPending}
+          <SubmitButton
+            idle="Update Password"
+            busy="Updating..."
             className="rounded-lg bg-navy px-5 py-2.5 text-sm font-medium text-white transition hover:bg-navy-400 disabled:opacity-50"
-          >
-            {passwordPending ? 'Updating...' : 'Update Password'}
-          </button>
+          />
         </form>
       </section>
 
@@ -224,6 +215,23 @@ export default function SettingsPage() {
         </div>
       </section>
     </div>
+  );
+}
+
+function SubmitButton({
+  idle,
+  busy,
+  className,
+}: {
+  idle: string;
+  busy: string;
+  className: string;
+}) {
+  const { pending } = useFormStatus();
+  return (
+    <button type="submit" disabled={pending} className={className}>
+      {pending ? busy : idle}
+    </button>
   );
 }
 
