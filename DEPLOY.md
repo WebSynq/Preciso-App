@@ -4,6 +4,14 @@ Authoritative settings for deploying the PRECISO monorepo to Vercel. One Vercel
 project per Next.js app — three projects total, all pointed at the same GitHub
 repository (`WebSynq/Preciso-App`).
 
+## Live URLs
+
+| Surface | Production URL | Vercel project |
+|---|---|---|
+| Provider portal | `https://preciso-app.vercel.app` | `preciso-portal` |
+| Admin console | `https://preciso-admin.vercel.app` | `preciso-admin` |
+| Developer console | _(not yet deployed)_ | `preciso-dev-console` (future) |
+
 > ⚠️ Production HIPAA deploy requires Vercel Enterprise + signed BAA + same for
 > Supabase (Team plan). These instructions are for **dev / preview / fake-data**
 > environments only. See `README.md` for the production-readiness checklist.
@@ -61,9 +69,13 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY     = <legacy anon JWT — Supabase dashboard → 
 SUPABASE_SERVICE_ROLE_KEY         = <legacy service_role JWT — same location>
 UPSTASH_REDIS_URL                 = https://<your-db>.upstash.io
 UPSTASH_REDIS_TOKEN               = <REST token from Upstash console>
-# Optional — controls the "Administrator? Sign in" link on /login:
+# Admin-login cross-link rendered at the bottom of /login:
 NEXT_PUBLIC_ADMIN_URL             = https://preciso-admin.vercel.app/login
 ```
+
+> `NEXT_PUBLIC_*` vars are build-time only — they get baked into the client
+> bundle. Any change requires a rebuild (Vercel → Deployments → Redeploy
+> **without** cache).
 
 ### Admin console (`apps/admin`)
 
