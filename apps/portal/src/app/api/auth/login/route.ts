@@ -137,7 +137,42 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ─── Success: clear counters, audit, return user ─────────────────────
+    // ─── Password correct — check whether MFA is required ────────────────
+    // SECURITY NOTE: If the user has a verified TOTP factor, the session
+    // Supabase just created is at aal1 — not fully authenticated. Do NOT
+    // clear the failed-attempt counter yet; MFA verification has to
+    // succeed first. We keep the session cookies (Supabase needs them
+    // for the challenge) but return requiresMfa so the client shows the
+    // TOTP input and cannot navigate to dashboard pages.
+    const { data: factorsData } = await supabase.auth.mfa.listFactors();
+    const verifiedTotp = factorsData?.all?.find(
+      (f) => f.factor_type === 'totp' && f.status === 'verified',
+    );
+
+    if (verifiedTotp) {
+      const { data: challenge, error: challengeErr } = await supabase.auth.mfa.challenge({
+        factorId: verifiedTotp.id,
+      });
+      if (challengeErr || !challenge) {
+        console.error('[auth/login] mfa challenge failed', { requestId, challengeErr });
+        return NextResponse.json(
+          { error: 'Could not start MFA challenge. Please try again.', requestId },
+          { status: 500, headers: { 'x-request-id': requestId } },
+        );
+      }
+      console.warn('[auth/login] mfa challenge issued', { requestId, userId: data.user.id });
+      return NextResponse.json(
+        {
+          requiresMfa: true,
+          factorId: verifiedTotp.id,
+          challengeId: challenge.id,
+          requestId,
+        },
+        { status: 200, headers: { 'x-request-id': requestId } },
+      );
+    }
+
+    // ─── No MFA required — fully signed in ───────────────────────────────
     await Promise.all([resetCounter(emailKey), resetCounter(ipKey)]);
     await writeSuccessAuditLog({
       userId: data.user.id,
@@ -146,7 +181,10 @@ export async function POST(request: NextRequest) {
       requestId,
     });
 
-    console.warn('[auth/login] sign-in success', { requestId, userId: data.user.id });
+    console.warn('[auth/login] sign-in success (no mfa)', {
+      requestId,
+      userId: data.user.id,
+    });
 
     return NextResponse.json(
       { success: true, userId: data.user.id, requestId },

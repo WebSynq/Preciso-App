@@ -29,6 +29,9 @@ function LoginPageContent() {
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginPending, setLoginPending] = useState(false);
 
+  const [mfa, setMfa] = useState<{ challengeId: string } | null>(null);
+  const [mfaCode, setMfaCode] = useState('');
+
   const [resetSuccess, setResetSuccess] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
   const [resetPending, setResetPending] = useState(false);
@@ -57,17 +60,52 @@ function LoginPageContent() {
       const result = (await res.json().catch(() => ({}))) as {
         error?: string;
         success?: boolean;
+        requiresMfa?: boolean;
+        challengeId?: string;
       };
+
+      if (result.requiresMfa && result.challengeId) {
+        // Password correct; switch UI into MFA-challenge mode.
+        setMfa({ challengeId: result.challengeId });
+        return;
+      }
+
       if (!res.ok || !result.success) {
         setLoginError(result.error || 'Invalid email or password. Please try again.');
         return;
       }
-      // Session cookies were set by the server on the response. Hard-nav
-      // so middleware sees them on the next request.
       window.location.assign(redirectTo);
     } catch (err) {
       console.error('[login] unexpected error', err);
       setLoginError('Unable to sign in right now. Please try again.');
+    } finally {
+      setLoginPending(false);
+    }
+  }
+
+  async function handleMfaSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!mfa) return;
+    setLoginError(null);
+    setLoginPending(true);
+    try {
+      const res = await fetch('/api/auth/mfa/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ challengeId: mfa.challengeId, code: mfaCode }),
+      });
+      const result = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        success?: boolean;
+      };
+      if (!res.ok || !result.success) {
+        setLoginError(result.error || 'Invalid code. Please try again.');
+        return;
+      }
+      window.location.assign(redirectTo);
+    } catch (err) {
+      console.error('[login] mfa verify unexpected error', err);
+      setLoginError('Unable to verify code right now. Please try again.');
     } finally {
       setLoginPending(false);
     }
@@ -109,12 +147,63 @@ function LoginPageContent() {
         </div>
 
         {callbackError && (
-          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            Authentication failed. Please try signing in again.
+          <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            {callbackError === 'mfa_required'
+              ? 'Please enter your authentication code to complete sign-in.'
+              : 'Authentication failed. Please try signing in again.'}
           </div>
         )}
 
-        {!showReset ? (
+        {mfa ? (
+          <form
+            onSubmit={handleMfaSubmit}
+            className="rounded-xl border border-gray-200 bg-white p-8 shadow-sm"
+          >
+            <p className="mb-4 text-sm text-gray-700">
+              Enter the 6-digit code from your authenticator app.
+            </p>
+            {loginError && (
+              <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {loginError}
+              </div>
+            )}
+            <label htmlFor="mfa-code" className="mb-1 block text-sm font-medium text-gray-700">
+              Authentication code
+            </label>
+            <input
+              id="mfa-code"
+              name="code"
+              type="text"
+              inputMode="numeric"
+              pattern="\d{6}"
+              maxLength={6}
+              required
+              autoFocus
+              autoComplete="one-time-code"
+              value={mfaCode}
+              onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, ''))}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2.5 font-mono text-lg tracking-widest focus:outline-none focus:ring-2 focus:ring-teal/50"
+            />
+            <button
+              type="submit"
+              disabled={loginPending || mfaCode.length !== 6}
+              className="mt-6 w-full rounded-lg bg-teal px-4 py-3 font-medium text-white transition hover:bg-teal-600 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {loginPending ? 'Verifying...' : 'Verify and sign in'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMfa(null);
+                setMfaCode('');
+                setLoginError(null);
+              }}
+              className="mt-4 w-full text-center text-sm font-medium text-gray-500 hover:text-gray-700"
+            >
+              Cancel and start over
+            </button>
+          </form>
+        ) : !showReset ? (
           <form
             onSubmit={handleLogin}
             className="rounded-xl border border-gray-200 bg-white p-8 shadow-sm"
