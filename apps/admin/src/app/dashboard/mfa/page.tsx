@@ -206,7 +206,8 @@ export default function AdminMfaPage() {
             Scan the QR code with your authenticator app
           </h2>
           <div className="mb-6 flex flex-col items-center gap-4 rounded-lg border border-gray-200 bg-gray-50 p-6">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
+            {/* Raw <img> is deliberate — QR comes from Supabase as an SVG
+                data URI, not a URL; next/image can't optimise it. */}
             <img src={enroll.qrCode} alt="MFA QR code" className="h-48 w-48" />
             <p className="text-xs text-gray-500">Can&apos;t scan? Enter this secret manually:</p>
             <code className="select-all rounded bg-white px-3 py-1 font-mono text-xs text-gray-800">
