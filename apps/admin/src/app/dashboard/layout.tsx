@@ -1,8 +1,8 @@
 import Link from 'next/link';
 
-import { requireAdmin } from '@/lib/auth/require-admin';
-
 import { SignOutButton } from './sign-out-button';
+
+import { requireAdmin } from '@/lib/auth/require-admin';
 
 // Admin dashboard shell. requireAdmin enforces the admin claim on every
 // route under /dashboard before rendering any child page.

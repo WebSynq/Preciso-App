@@ -1,8 +1,8 @@
 import Link from 'next/link';
 
-import { requireDeveloper } from '@/lib/auth/require-developer';
-
 import { SignOutButton } from './sign-out-button';
+
+import { requireDeveloper } from '@/lib/auth/require-developer';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user } = await requireDeveloper();
