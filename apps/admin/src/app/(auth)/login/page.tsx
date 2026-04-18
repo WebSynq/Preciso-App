@@ -104,10 +104,13 @@ function LoginPageContent() {
           <p className="mt-2 text-gray-600">Platform administration console</p>
         </div>
 
-        {(errorCode === 'not_authorized' || errorCode === 'mfa_required' || loginError) && (
+        {(errorCode === 'not_authorized' ||
+          errorCode === 'mfa_required' ||
+          errorCode === 'session_expired' ||
+          loginError) && (
           <div
             className={`mb-6 rounded-lg border px-4 py-3 text-sm ${
-              errorCode === 'mfa_required'
+              errorCode === 'mfa_required' || errorCode === 'session_expired'
                 ? 'border-amber-200 bg-amber-50 text-amber-800'
                 : 'border-red-200 bg-red-50 text-red-700'
             }`}
@@ -115,7 +118,9 @@ function LoginPageContent() {
             {loginError ||
               (errorCode === 'mfa_required'
                 ? 'Please enter your authentication code to complete sign-in.'
-                : 'You are not authorized to access this console.')}
+                : errorCode === 'session_expired'
+                  ? 'You were signed out after 15 minutes of inactivity. Please sign in again.'
+                  : 'You are not authorized to access this console.')}
           </div>
         )}
 

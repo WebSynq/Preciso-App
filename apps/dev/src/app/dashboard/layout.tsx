@@ -1,5 +1,6 @@
 import Link from 'next/link';
 
+import { SessionTimeoutProvider } from './session-timeout';
 import { SignOutButton } from './sign-out-button';
 
 import { requireDeveloper } from '@/lib/auth/require-developer';
@@ -8,6 +9,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const { user } = await requireDeveloper();
 
   return (
+    <SessionTimeoutProvider>
     <div className="min-h-screen bg-ink">
       <header className="border-b border-ink-200 bg-ink-100">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
@@ -38,5 +40,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
       </header>
       <main className="mx-auto max-w-7xl px-6 py-8">{children}</main>
     </div>
+    </SessionTimeoutProvider>
   );
 }

@@ -150,7 +150,9 @@ function LoginPageContent() {
           <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
             {callbackError === 'mfa_required'
               ? 'Please enter your authentication code to complete sign-in.'
-              : 'Authentication failed. Please try signing in again.'}
+              : callbackError === 'session_expired'
+                ? 'You were signed out after 15 minutes of inactivity. Please sign in again.'
+                : 'Authentication failed. Please try signing in again.'}
           </div>
         )}
 

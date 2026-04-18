@@ -5,23 +5,30 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 
 import { createClient } from '@/lib/supabase/client';
 
-const SESSION_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
-const WARNING_BEFORE_MS = 2 * 60 * 1000; // Show warning at 13 minutes
+/**
+ * 15-minute idle timeout for the admin console.
+ *
+ * SECURITY NOTE: Admin accounts have broader PHI access than providers,
+ * so the idle timeout is enforced identically (15 min) but matters more
+ * here. signOut() is called before navigation so the refresh token is
+ * revoked server-side, not just cleared client-side.
+ */
+
+const SESSION_TIMEOUT_MS = 15 * 60 * 1000;
+const WARNING_BEFORE_MS = 2 * 60 * 1000;
 
 interface SessionTimeoutContextValue {
   resetTimer: () => void;
 }
 
-const SessionTimeoutContext = createContext<SessionTimeoutContextValue>({ resetTimer: () => {} });
+const SessionTimeoutContext = createContext<SessionTimeoutContextValue>({
+  resetTimer: () => {},
+});
 
 export function useSessionTimeout() {
   return useContext(SessionTimeoutContext);
 }
 
-/**
- * Tracks user inactivity and auto-logs out after 15 minutes.
- * Shows a warning modal at 13 minutes.
- */
 export function SessionTimeoutProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [showWarning, setShowWarning] = useState(false);
@@ -29,10 +36,6 @@ export function SessionTimeoutProvider({ children }: { children: React.ReactNode
   const warningRef = useRef<ReturnType<typeof setTimeout>>();
 
   const handleLogout = useCallback(async () => {
-    // SECURITY NOTE: signOut before navigating so the access + refresh
-    // tokens are invalidated server-side, not just cleared from memory.
-    // A race where the timer fires but signOut hasn't completed would
-    // leave a valid session token in document.cookie until navigation.
     const supabase = createClient();
     await supabase.auth.signOut();
     router.push('/login?error=session_expired');
@@ -40,14 +43,11 @@ export function SessionTimeoutProvider({ children }: { children: React.ReactNode
 
   const resetTimer = useCallback(() => {
     setShowWarning(false);
-
     if (warningRef.current) clearTimeout(warningRef.current);
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
-
     warningRef.current = setTimeout(() => {
       setShowWarning(true);
     }, SESSION_TIMEOUT_MS - WARNING_BEFORE_MS);
-
     timeoutRef.current = setTimeout(() => {
       handleLogout();
     }, SESSION_TIMEOUT_MS);
@@ -55,12 +55,9 @@ export function SessionTimeoutProvider({ children }: { children: React.ReactNode
 
   useEffect(() => {
     const events = ['mousedown', 'keydown', 'scroll', 'touchstart'] as const;
-
     const handleActivity = () => resetTimer();
-
     events.forEach((event) => document.addEventListener(event, handleActivity));
     resetTimer();
-
     return () => {
       events.forEach((event) => document.removeEventListener(event, handleActivity));
       if (warningRef.current) clearTimeout(warningRef.current);
@@ -71,20 +68,18 @@ export function SessionTimeoutProvider({ children }: { children: React.ReactNode
   return (
     <SessionTimeoutContext.Provider value={{ resetTimer }}>
       {children}
-
-      {/* Timeout warning modal */}
       {showWarning && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="mx-4 w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
             <h3 className="mb-2 text-lg font-semibold text-navy">Session Expiring</h3>
             <p className="mb-6 text-sm text-gray-600">
-              Your session will expire in 2 minutes due to inactivity. Click below to stay signed
-              in.
+              Admin sessions time out after 15 minutes of inactivity. You will be signed
+              out in 2 minutes unless you click below.
             </p>
             <div className="flex gap-3">
               <button
                 onClick={resetTimer}
-                className="flex-1 rounded-lg bg-teal px-4 py-2.5 text-sm font-medium text-white transition hover:bg-teal-600"
+                className="flex-1 rounded-lg bg-navy px-4 py-2.5 text-sm font-medium text-white transition hover:bg-navy-600"
               >
                 Stay Signed In
               </button>
