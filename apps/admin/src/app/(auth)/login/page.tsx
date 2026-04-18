@@ -3,8 +3,6 @@
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useState, type FormEvent } from 'react';
 
-import { createClient } from '@/lib/supabase/client';
-
 export default function LoginPage() {
   return (
     <Suspense
@@ -27,11 +25,11 @@ function LoginPageContent() {
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginPending, setLoginPending] = useState(false);
 
-  // SECURITY NOTE: We sign in with the same Supabase auth the portal uses
-  // but then REQUIRE the JWT to carry app_metadata.role = 'admin'. A
-  // provider who somehow reaches /login for the admin app still cannot
-  // sign in — signInWithPassword succeeds, we immediately signOut, and
-  // return a generic error that does not confirm the account exists.
+  // SECURITY NOTE: The admin login route enforces both password auth AND
+  // the admin role claim, plus a failed-attempt lockout (5/email,
+  // 20/IP, 15 min). Doing the role check server-side means a non-admin
+  // attacker cannot even see that their password was valid — every
+  // non-admin attempt counts against the lockout.
   async function handleLogin(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoginError(null);
@@ -42,28 +40,21 @@ function LoginPageContent() {
     const password = String(form.get('password') || '');
 
     try {
-      const supabase = createClient();
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error || !data.user) {
-        console.error('[admin/login] signInWithPassword failed', {
-          message: error?.message,
-          code: error?.code,
-        });
-        setLoginError('Invalid credentials.');
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const result = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        success?: boolean;
+      };
+      if (!res.ok || !result.success) {
+        setLoginError(result.error || 'Invalid credentials.');
         return;
       }
-
-      const role = (data.user.app_metadata as { role?: string } | undefined)?.role;
-      if (role !== 'admin') {
-        console.warn('[admin/login] non-admin attempted admin sign-in', {
-          userId: data.user.id,
-        });
-        await supabase.auth.signOut();
-        setLoginError('Invalid credentials.');
-        return;
-      }
-
-      // Hard navigation so middleware sees the freshly-written cookies.
+      // Cookies set by the server on the response. Hard-nav so
+      // middleware sees them on the next request.
       window.location.assign(redirectTo);
     } catch (err) {
       console.error('[admin/login] unexpected error', err);

@@ -3,8 +3,6 @@
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useState, type FormEvent } from 'react';
 
-import { createClient } from '@/lib/supabase/client';
-
 export default function LoginPage() {
   return (
     <Suspense
@@ -27,9 +25,11 @@ function LoginPageContent() {
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginPending, setLoginPending] = useState(false);
 
-  // SECURITY NOTE: Require developer claim at sign-in. Non-developer
-  // sessions are immediately signed out with a generic error — we never
-  // confirm that the account exists.
+  // SECURITY NOTE: The developer login route enforces password auth,
+  // the developer-role claim, AND a per-email / per-IP failed-attempt
+  // lockout — all server-side. A non-developer attempt still counts
+  // against the lockout so an attacker cannot differentiate 'wrong
+  // password' from 'wrong role' by watching the error.
   async function handleLogin(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoginError(null);
@@ -40,24 +40,17 @@ function LoginPageContent() {
     const password = String(form.get('password') || '');
 
     try {
-      const supabase = createClient();
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error || !data.user) {
-        console.error('[dev/login] signInWithPassword failed', {
-          message: error?.message,
-          code: error?.code,
-        });
-        setLoginError('Invalid credentials.');
-        return;
-      }
-      const role = (data.user.app_metadata as { role?: string } | undefined)?.role;
-      if (role !== 'developer') {
-        console.warn('[dev/login] non-developer attempted dev sign-in', {
-          userId: data.user.id,
-          role: role ?? 'none',
-        });
-        await supabase.auth.signOut();
-        setLoginError('Invalid credentials.');
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const result = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        success?: boolean;
+      };
+      if (!res.ok || !result.success) {
+        setLoginError(result.error || 'Invalid credentials.');
         return;
       }
       window.location.assign(redirectTo);

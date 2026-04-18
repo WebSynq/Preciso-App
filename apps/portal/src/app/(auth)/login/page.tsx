@@ -43,19 +43,27 @@ function LoginPageContent() {
     const password = String(form.get('password') || '');
 
     try {
-      const supabase = createClient();
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) {
-        console.error('[login] signInWithPassword failed', {
-          message: error.message,
-          status: error.status,
-          code: error.code,
-        });
-        setLoginError('Invalid email or password. Please try again.');
+      // SECURITY NOTE: Hit the server-side /api/auth/login route instead
+      // of calling supabase.auth.signInWithPassword directly. The route
+      // enforces failed-login lockout (5 per email / 20 per IP / 15 min)
+      // and audit-logs every attempt. Bypassing the route is not possible
+      // because the client can't reach Upstash and can't write cookies
+      // for the middleware to trust without going through the route.
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const result = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        success?: boolean;
+      };
+      if (!res.ok || !result.success) {
+        setLoginError(result.error || 'Invalid email or password. Please try again.');
         return;
       }
-      // SECURITY NOTE: Hard navigation so the browser re-issues the request
-      // with the fresh auth cookies attached; middleware then sees the session.
+      // Session cookies were set by the server on the response. Hard-nav
+      // so middleware sees them on the next request.
       window.location.assign(redirectTo);
     } catch (err) {
       console.error('[login] unexpected error', err);

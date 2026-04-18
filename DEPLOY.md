@@ -48,27 +48,44 @@ The repo follows Vercel's canonical monorepo pattern:
 
 Set these for **Production**, **Preview**, and **Development** scopes.
 
+All three apps now need the same three env vars. The service role key
+is used server-side for audit-log inserts (HIPAA read-tracking),
+failed-login counter writes, and the order-creation API route.
+**Service role bypasses RLS — never paste in chat, never commit.**
+
 ### Provider portal (`apps/portal`)
 
 ```
 NEXT_PUBLIC_SUPABASE_URL          = https://kzawghnjegnyihgtjcfn.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY     = <legacy anon JWT — Supabase dashboard → Settings → API Keys → Legacy tab>
+SUPABASE_SERVICE_ROLE_KEY         = <legacy service_role JWT — same location>
+UPSTASH_REDIS_URL                 = https://<your-db>.upstash.io
+UPSTASH_REDIS_TOKEN               = <REST token from Upstash console>
+# Optional — controls the "Administrator? Sign in" link on /login:
+NEXT_PUBLIC_ADMIN_URL             = https://preciso-admin.vercel.app/login
 ```
 
 ### Admin console (`apps/admin`)
 
-Same two env vars as the portal. Admin role is enforced by the JWT claim
-`app_metadata.role = 'admin'`, applied via SQL on `auth.users`.
+```
+NEXT_PUBLIC_SUPABASE_URL          = https://kzawghnjegnyihgtjcfn.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY     = <legacy anon JWT>
+SUPABASE_SERVICE_ROLE_KEY         = <legacy service_role JWT>
+UPSTASH_REDIS_URL                 = https://<your-db>.upstash.io
+UPSTASH_REDIS_TOKEN               = <REST token>
+```
+
+Admin role is enforced by the JWT claim `app_metadata.role = 'admin'`,
+applied via SQL on `auth.users`.
 
 ### Developer console (`apps/dev`)
-
-Adds the service role key. **This key bypasses RLS — never paste in chat,
-never commit.**
 
 ```
 NEXT_PUBLIC_SUPABASE_URL          = https://kzawghnjegnyihgtjcfn.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY     = <legacy anon JWT>
-SUPABASE_SERVICE_ROLE_KEY         = <legacy service_role JWT — Supabase dashboard → Settings → API Keys → Legacy tab>
+SUPABASE_SERVICE_ROLE_KEY         = <legacy service_role JWT>
+UPSTASH_REDIS_URL                 = https://<your-db>.upstash.io
+UPSTASH_REDIS_TOKEN               = <REST token>
 ```
 
 ## Test accounts (Supabase Auth)

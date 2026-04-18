@@ -1,3 +1,7 @@
+import { createClient as createAdminClient } from '@supabase/supabase-js';
+import { headers } from 'next/headers';
+
+import { requireAdmin } from '@/lib/auth/require-admin';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
@@ -14,6 +18,21 @@ interface OrderRow {
 }
 
 export default async function AdminOrdersPage() {
+  // requireAdmin both gates the page AND gives us the user for the audit.
+  // Layout already calls it, but calling again is idempotent and keeps
+  // this file independently safe if layout assumptions change.
+  const { user } = await requireAdmin();
+
+  // SECURITY NOTE: Admin viewing orders = bulk PHI access. HIPAA requires
+  // each such access be logged. Write an 'admin.orders.list' audit row
+  // before the data is fetched so even if the SELECT later fails we have
+  // a record of the attempt.
+  void writeAdminReadAudit({
+    userId: user.id,
+    ip: headers().get('x-forwarded-for')?.split(',')[0]?.trim() || null,
+    userAgent: headers().get('user-agent'),
+  });
+
   const supabase = createServerSupabaseClient();
 
   const { data, error } = await supabase
@@ -92,4 +111,36 @@ export default async function AdminOrdersPage() {
       </div>
     </div>
   );
+}
+
+/**
+ * Fire-and-forget audit log for admin bulk PHI reads. Uses the service
+ * role client — admin-role JWTs cannot INSERT into audit_logs directly,
+ * only SELECT (migration 00003 + 00004).
+ */
+async function writeAdminReadAudit(opts: {
+  userId: string;
+  ip: string | null;
+  userAgent: string | null;
+}): Promise<void> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    console.error('[admin/orders] audit skipped: service role key missing');
+    return;
+  }
+  try {
+    const client = createAdminClient(url, key, { auth: { persistSession: false } });
+    await client.from('audit_logs').insert({
+      actor_id: opts.userId,
+      actor_type: 'admin',
+      action: 'admin.orders.list',
+      resource_type: 'kit_orders',
+      resource_id: opts.userId,
+      ip_address: opts.ip,
+      user_agent: opts.userAgent,
+    });
+  } catch (err) {
+    console.error('[admin/orders] audit insert failed', err);
+  }
 }

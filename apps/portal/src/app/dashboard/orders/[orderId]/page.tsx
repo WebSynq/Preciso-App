@@ -1,4 +1,6 @@
 import type { CustodyEvent, KitOrder, LabResult } from '@preciso/types';
+import { createClient as createAdminClient } from '@supabase/supabase-js';
+import { headers } from 'next/headers';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
@@ -17,6 +19,16 @@ export default async function OrderDetailPage({
   const supabase = createServerSupabaseClient();
   const { orderId } = params;
 
+  // Resolve the authenticated provider up front — needed both for the
+  // page query (RLS will enforce this anyway) and for the PHI read
+  // audit log.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    redirect('/login');
+  }
+
   const { data: order, error } = await supabase
     .from('kit_orders')
     .select('*')
@@ -28,6 +40,20 @@ export default async function OrderDetailPage({
   }
 
   const typedOrder = order as KitOrder;
+
+  // SECURITY NOTE: HIPAA requires tracking every PHI read. An order
+  // detail page exposes patient_ref, delivery_address, kit_barcode,
+  // lab results — all PHI. We write a fire-and-forget 'order.read'
+  // audit row via the service role client (RLS on audit_logs blocks
+  // provider inserts). Failures are logged but do not block rendering:
+  // defensibility > availability trade-off goes to availability here,
+  // but every audit gap is a Sev-2 alert in CloudWatch.
+  void writeReadAudit({
+    userId: user.id,
+    orderId,
+    ip: headers().get('x-forwarded-for')?.split(',')[0]?.trim() || null,
+    userAgent: headers().get('user-agent'),
+  });
 
   const { data: custodyEvents } = await supabase
     .from('custody_events')
@@ -177,4 +203,42 @@ function Field({
       </p>
     </div>
   );
+}
+
+/**
+ * Writes an 'order.read' audit log row. Service-role client — providers
+ * cannot write to audit_logs directly (RLS allows only SELECT for
+ * admins; INSERT is reserved for server-side code with the service
+ * role key). See migration 00004 for the append-only contract.
+ *
+ * Intentionally async + fire-and-forget: never block page render on
+ * an audit insert. If the audit layer is unavailable CloudWatch alarms
+ * should fire; the clinical ops trade-off here favours availability.
+ */
+async function writeReadAudit(opts: {
+  userId: string;
+  orderId: string;
+  ip: string | null;
+  userAgent: string | null;
+}): Promise<void> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    console.error('[order-detail] audit skipped: service role key missing');
+    return;
+  }
+  try {
+    const client = createAdminClient(url, key, { auth: { persistSession: false } });
+    await client.from('audit_logs').insert({
+      actor_id: opts.userId,
+      actor_type: 'provider',
+      action: 'order.read',
+      resource_type: 'kit_orders',
+      resource_id: opts.orderId,
+      ip_address: opts.ip,
+      user_agent: opts.userAgent,
+    });
+  } catch (err) {
+    console.error('[order-detail] audit insert failed', err);
+  }
 }
