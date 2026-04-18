@@ -40,18 +40,24 @@ export async function updateSession(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
   const isLogin = pathname === '/login';
+  // SECURITY NOTE: Auth + MFA API routes must not be redirected. A
+  // 307 redirect preserves POST method, so redirecting /api/auth/login
+  // to /login would turn the sign-in POST into a POST against the
+  // page route — Next returns 405 and the user sees a cryptic failure.
+  // These routes do their own auth internally; let them through.
+  const isAuthApi = pathname.startsWith('/api/auth/');
 
   const role = (user?.app_metadata as { role?: string } | undefined)?.role;
   const isDeveloper = role === 'developer';
 
-  if (!user && !isLogin) {
+  if (!user && !isLogin && !isAuthApi) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     url.searchParams.set('redirect', pathname);
     return NextResponse.redirect(url);
   }
 
-  if (user && !isDeveloper && !isLogin) {
+  if (user && !isDeveloper && !isLogin && !isAuthApi) {
     console.warn('[dev/middleware] non-developer authenticated user blocked', {
       userId: user.id,
       role: role ?? 'none',
@@ -63,8 +69,9 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // MFA step-up — same contract as portal/admin.
-  if (user && isDeveloper && !isLogin) {
+  // MFA step-up — same contract as portal/admin. Skipped on the auth
+  // API routes so the MFA verify flow can complete.
+  if (user && isDeveloper && !isLogin && !isAuthApi) {
     const { data: aalData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
     if (
       aalData?.currentLevel &&

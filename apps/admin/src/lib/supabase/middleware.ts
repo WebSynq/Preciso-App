@@ -42,20 +42,26 @@ export async function updateSession(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
   const isLogin = pathname === '/login';
+  // SECURITY NOTE: Auth + MFA API routes must not be redirected. A
+  // 307 redirect preserves POST method, so redirecting /api/auth/login
+  // to /login turns the sign-in POST into a POST at the page route —
+  // Next returns 405 and the user sees a cryptic failure. These routes
+  // do their own auth checks internally; let them through.
+  const isAuthApi = pathname.startsWith('/api/auth/');
 
   // Extract admin claim if present. getUser returns the authoritative
   // user object (server-validated), including app_metadata.
   const role = (user?.app_metadata as { role?: string } | undefined)?.role;
   const isAdmin = role === 'admin';
 
-  if (!user && !isLogin) {
+  if (!user && !isLogin && !isAuthApi) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     url.searchParams.set('redirect', pathname);
     return NextResponse.redirect(url);
   }
 
-  if (user && !isAdmin && !isLogin) {
+  if (user && !isAdmin && !isLogin && !isAuthApi) {
     // Signed in but not an admin. Do not leak the admin URL structure —
     // kick them to /login with a generic error.
     console.warn('[admin/middleware] non-admin authenticated user blocked', {
@@ -73,8 +79,9 @@ export async function updateSession(request: NextRequest) {
   //     any dashboard page renders. An aal1 session (password only) is
   //     signed out and bounced to /login so the login route can issue
   //     the MFA challenge properly.
-  //   - Skipped on /login so the code-entry flow can complete.
-  if (user && isAdmin && !isLogin) {
+  //   - Skipped on /login and /api/auth/* so the challenge-verify flow
+  //     can complete.
+  if (user && isAdmin && !isLogin && !isAuthApi) {
     const { data: aalData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
     if (
       aalData?.currentLevel &&
