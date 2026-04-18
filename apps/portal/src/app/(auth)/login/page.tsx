@@ -169,6 +169,20 @@ function LoginPageContent() {
                 Register
               </Link>
             </p>
+
+            {/* SECURITY NOTE: Admin link is a plain anchor to a separate
+                origin so the admin app's middleware + JWT-claim check
+                governs everything; the portal does not assume admin
+                identity. NEXT_PUBLIC_ADMIN_URL is set per environment. */}
+            <p className="mt-4 border-t border-gray-100 pt-4 text-center text-xs text-gray-400">
+              Administrator?{' '}
+              <a
+                href={process.env.NEXT_PUBLIC_ADMIN_URL || 'http://localhost:3001/login'}
+                className="font-medium text-navy hover:underline"
+              >
+                Sign in to the admin console &rarr;
+              </a>
+            </p>
           </form>
         ) : (
           <form
