@@ -42,9 +42,32 @@ function warnFallbackOnce(): void {
   if (fallbackWarned) return;
   fallbackWarned = true;
   console.warn(
-    '[rate-limit] UPSTASH_REDIS_URL / UPSTASH_REDIS_TOKEN not set — using in-memory ' +
-      'fallback. This is ONLY safe for local dev. Set both env vars before deploying.',
+    '[rate-limit] No Upstash env vars detected — using in-memory fallback. ' +
+      'This is ONLY safe for local dev. Set UPSTASH_REDIS_URL + UPSTASH_REDIS_TOKEN ' +
+      'or UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN before deploying.',
   );
+}
+
+/**
+ * Resolves Upstash credentials from any of the three naming conventions:
+ *   - UPSTASH_REDIS_URL / UPSTASH_REDIS_TOKEN        (our .env.example)
+ *   - UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN
+ *     (Vercel Marketplace "Upstash for Redis" integration)
+ *   - KV_REST_API_URL / KV_REST_API_TOKEN
+ *     (legacy Vercel KV-by-Upstash naming)
+ * Returns null for both when neither pair is set.
+ */
+function getUpstashCreds(): { url: string; token: string } | null {
+  const url =
+    process.env.UPSTASH_REDIS_URL ||
+    process.env.UPSTASH_REDIS_REST_URL ||
+    process.env.KV_REST_API_URL;
+  const token =
+    process.env.UPSTASH_REDIS_TOKEN ||
+    process.env.UPSTASH_REDIS_REST_TOKEN ||
+    process.env.KV_REST_API_TOKEN;
+  if (!url || !token) return null;
+  return { url, token };
 }
 
 async function upstashCommand(
@@ -86,15 +109,13 @@ export async function rateLimit(opts: RateLimitOptions): Promise<RateLimitResult
   const resetAt = windowStart + windowLenMs;
   const key = `ratelimit:${identifier}:${windowStart}`;
 
-  const upstashUrl = process.env.UPSTASH_REDIS_URL;
-  const upstashToken = process.env.UPSTASH_REDIS_TOKEN;
-
-  if (upstashUrl && upstashToken) {
+  const creds = getUpstashCreds();
+  if (creds) {
     try {
-      const incr = (await upstashCommand(upstashUrl, upstashToken, ['INCR', key])) as number;
+      const incr = (await upstashCommand(creds.url, creds.token, ['INCR', key])) as number;
       if (incr === 1) {
         // First request in this window — set TTL so the key is reaped.
-        await upstashCommand(upstashUrl, upstashToken, [
+        await upstashCommand(creds.url, creds.token, [
           'EXPIRE',
           key,
           String(windowSeconds),
@@ -141,9 +162,8 @@ export async function incrementCounter(
   key: string,
   ttlSeconds: number,
 ): Promise<number | null> {
-  const upstashUrl = process.env.UPSTASH_REDIS_URL;
-  const upstashToken = process.env.UPSTASH_REDIS_TOKEN;
-  if (!upstashUrl || !upstashToken) {
+  const creds = getUpstashCreds();
+  if (!creds) {
     warnFallbackOnce();
     const now = Date.now();
     const existing = memoryStore.get(key);
@@ -152,9 +172,9 @@ export async function incrementCounter(
     return count;
   }
   try {
-    const n = (await upstashCommand(upstashUrl, upstashToken, ['INCR', key])) as number;
+    const n = (await upstashCommand(creds.url, creds.token, ['INCR', key])) as number;
     if (n === 1) {
-      await upstashCommand(upstashUrl, upstashToken, ['EXPIRE', key, String(ttlSeconds)]);
+      await upstashCommand(creds.url, creds.token, ['EXPIRE', key, String(ttlSeconds)]);
     }
     return n;
   } catch (err) {
@@ -165,14 +185,13 @@ export async function incrementCounter(
 
 /** Deletes a counter (used to clear failed login attempts on success). */
 export async function resetCounter(key: string): Promise<void> {
-  const upstashUrl = process.env.UPSTASH_REDIS_URL;
-  const upstashToken = process.env.UPSTASH_REDIS_TOKEN;
-  if (!upstashUrl || !upstashToken) {
+  const creds = getUpstashCreds();
+  if (!creds) {
     memoryStore.delete(key);
     return;
   }
   try {
-    await upstashCommand(upstashUrl, upstashToken, ['DEL', key]);
+    await upstashCommand(creds.url, creds.token, ['DEL', key]);
   } catch (err) {
     console.error('[rate-limit] resetCounter Upstash failure', err);
   }
@@ -180,15 +199,14 @@ export async function resetCounter(key: string): Promise<void> {
 
 /** Reads a counter without modifying it (used to check lockout status). */
 export async function readCounter(key: string): Promise<number> {
-  const upstashUrl = process.env.UPSTASH_REDIS_URL;
-  const upstashToken = process.env.UPSTASH_REDIS_TOKEN;
-  if (!upstashUrl || !upstashToken) {
+  const creds = getUpstashCreds();
+  if (!creds) {
     const now = Date.now();
     const existing = memoryStore.get(key);
     return existing && existing.resetAt > now ? existing.count : 0;
   }
   try {
-    const raw = (await upstashCommand(upstashUrl, upstashToken, ['GET', key])) as
+    const raw = (await upstashCommand(creds.url, creds.token, ['GET', key])) as
       | string
       | null;
     return raw ? parseInt(raw, 10) || 0 : 0;
