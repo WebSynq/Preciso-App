@@ -19,11 +19,11 @@ curl -s -w "\nHTTP Status: %{http_code}\n" \
   -d "${PAYLOAD}"
 
 echo ""
-echo "--- Cenegenics (invalid HMAC) ---"
+echo "--- Centogene (invalid HMAC) ---"
 curl -s -w "\nHTTP Status: %{http_code}\n" \
-  -X POST "${API_URL}/webhooks/lab/cenegenics" \
+  -X POST "${API_URL}/webhooks/lab/centogene" \
   -H "Content-Type: application/json" \
-  -H "X-Cenegenics-Signature: ${BAD_SIGNATURE}" \
+  -H "X-Centogene-Signature: ${BAD_SIGNATURE}" \
   -d "${PAYLOAD}"
 
 echo ""

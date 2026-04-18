@@ -22,7 +22,7 @@ export const OrderStatusSchema = z.enum([
   'cancelled',
 ]);
 
-export const LabPartnerSchema = z.enum(['cenegenics', 'sampled']);
+export const LabPartnerSchema = z.enum(['centogene', 'sampled', 'cenegenics']);
 
 export const ResultStatusSchema = z.enum(['pending', 'processing', 'complete', 'flagged', 'failed']);
 

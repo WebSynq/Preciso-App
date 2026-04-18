@@ -98,11 +98,18 @@ export const fedexWebhookAuth = createWebhookAuth({
   vendor: 'FedEx',
 });
 
-export const cenegenicsWebhookAuth = createWebhookAuth({
-  signatureHeader: 'X-Cenegenics-Signature',
-  secretEnvVar: 'CENEGENICS_WEBHOOK_SECRET',
-  vendor: 'Cenegenics',
+export const centogeneWebhookAuth = createWebhookAuth({
+  signatureHeader: 'X-Centogene-Signature',
+  secretEnvVar: 'CENTOGENE_WEBHOOK_SECRET',
+  vendor: 'Centogene',
 });
+
+/**
+ * @deprecated Use centogeneWebhookAuth. Kept as an alias so any
+ * external route configuration that still references the old name
+ * continues to work until callers are updated.
+ */
+export const cenegenicsWebhookAuth = centogeneWebhookAuth;
 
 export const sampledWebhookAuth = createWebhookAuth({
   signatureHeader: 'X-Sampled-Signature',

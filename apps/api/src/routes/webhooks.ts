@@ -7,7 +7,7 @@ import { logAuditEvent } from '../integrations/vericense.stub';
 import { createAdminClient } from '../lib/supabase';
 import {
   fedexWebhookAuth,
-  cenegenicsWebhookAuth,
+  centogeneWebhookAuth,
   sampledWebhookAuth,
 } from '../middleware/webhook-auth';
 import { writeAuditLog } from '../services/audit-logger';
@@ -190,21 +190,22 @@ router.post('/tracking', fedexWebhookAuth, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Cenegenics Lab Result Webhook (STUB)
-// POST /webhooks/lab/cenegenics
+// Centogene Lab Result Webhook (STUB — will be split into 6 endpoints in Step 4)
+// POST /webhooks/lab/centogene
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Expected payload from Cenegenics (to be confirmed in IT call).
+ * Expected payload from Centogene (to be confirmed via their GEPPADO
+ * system + Azure middleware spec).
  *
- * TODO — Confirm with Cenegenics IT:
+ * TODO — Confirm with Centogene IT:
  *   - Exact field names and types
  *   - HL7/FHIR format specifics
  *   - Result delivery cadence
  *   - Error/retry behavior
  *   - Flagged value codes and meanings
  */
-interface CenegenicsResultPayload {
+interface CentogeneResultPayload {
   orderId: string;
   kitBarcode: string;
   resultStatus: 'complete' | 'flagged' | 'failed';
@@ -214,12 +215,12 @@ interface CenegenicsResultPayload {
   flaggedValues?: string[];
 }
 
-router.post('/lab/cenegenics', cenegenicsWebhookAuth, async (req, res) => {
+router.post('/lab/centogene', centogeneWebhookAuth, async (req, res) => {
   try {
-    const payload = req.body as CenegenicsResultPayload;
+    const payload = req.body as CentogeneResultPayload;
 
-    console.warn('[Webhook] Cenegenics result received', {
-      label: 'CENEGENICS_RESULT_PAYLOAD',
+    console.warn('[Webhook] Centogene result received', {
+      label: 'CENTOGENE_RESULT_PAYLOAD',
       payload,
       timestamp: new Date().toISOString(),
     });
@@ -228,7 +229,7 @@ router.post('/lab/cenegenics', cenegenicsWebhookAuth, async (req, res) => {
     const result = await processLabResult({
       orderId: payload.orderId,
       kitBarcode: payload.kitBarcode,
-      labPartner: 'cenegenics',
+      labPartner: 'centogene',
       resultStatus: payload.resultStatus,
       resultRef: payload.resultRef,
       reportUrl: payload.reportUrl,
@@ -237,7 +238,7 @@ router.post('/lab/cenegenics', cenegenicsWebhookAuth, async (req, res) => {
     });
 
     if (!result.success) {
-      console.error('[Webhook] Cenegenics result processing failed', {
+      console.error('[Webhook] Centogene result processing failed', {
         error: result.error,
       });
     }
@@ -245,7 +246,7 @@ router.post('/lab/cenegenics', cenegenicsWebhookAuth, async (req, res) => {
     // Always return 200 to acknowledge receipt
     res.json({ received: true, processed: result.success, labResultId: result.labResultId });
   } catch (err) {
-    console.error('[Webhook] Cenegenics processing error', err);
+    console.error('[Webhook] Centogene processing error', err);
     res.status(500).json({ error: 'Internal processing error.' });
   }
 });
@@ -261,7 +262,7 @@ router.post('/lab/cenegenics', cenegenicsWebhookAuth, async (req, res) => {
  * TODO — Confirm with Sampled:
  *   - API documentation URL
  *   - Auth method for webhook callbacks
- *   - Payload format (may differ from Cenegenics)
+ *   - Payload format (may differ from Centogene)
  *   - Pilot validation requirements
  */
 interface SampledResultPayload {

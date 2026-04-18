@@ -1,9 +1,9 @@
 #!/bin/bash
-# Test Cenegenics lab result webhook with valid HMAC signature
+# Test Centogene lab result webhook with valid HMAC signature
 # Usage: ./test-lab-result-webhook.sh [API_URL]
 
 API_URL="${1:-http://localhost:4000}"
-SECRET="${CENEGENICS_WEBHOOK_SECRET:-test-cenegenics-secret}"
+SECRET="${CENTOGENE_WEBHOOK_SECRET:-${CENEGENICS_WEBHOOK_SECRET:-test-centogene-secret}}"
 
 PAYLOAD='{
   "orderId": "FS-TEST001",
@@ -18,16 +18,16 @@ PAYLOAD='{
 # Compute HMAC-SHA256 signature
 SIGNATURE=$(echo -n "$PAYLOAD" | openssl dgst -sha256 -hmac "$SECRET" | awk '{print $2}')
 
-echo "=== Cenegenics Lab Result Webhook Test ==="
-echo "URL: ${API_URL}/webhooks/lab/cenegenics"
+echo "=== Centogene Lab Result Webhook Test ==="
+echo "URL: ${API_URL}/webhooks/lab/centogene"
 echo "Signature: ${SIGNATURE}"
 echo "Payload: ${PAYLOAD}"
 echo ""
 
 curl -s -w "\nHTTP Status: %{http_code}\n" \
-  -X POST "${API_URL}/webhooks/lab/cenegenics" \
+  -X POST "${API_URL}/webhooks/lab/centogene" \
   -H "Content-Type: application/json" \
-  -H "X-Cenegenics-Signature: ${SIGNATURE}" \
+  -H "X-Centogene-Signature: ${SIGNATURE}" \
   -d "${PAYLOAD}"
 
 echo ""

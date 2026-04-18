@@ -42,8 +42,16 @@ export type OrderStatus = (typeof OrderStatus)[keyof typeof OrderStatus];
 
 /** Lab partner identifier */
 export const LabPartner = {
-  CENEGENICS: 'cenegenics',
+  CENTOGENE: 'centogene',
   SAMPLED: 'sampled',
+  /**
+   * @deprecated Legacy value retained so historical rows tagged
+   * 'cenegenics' still deserialise. All new code should emit
+   * LabPartner.CENTOGENE. Removed from LabPartner enum only after
+   * historical rows are migrated (no migration required at DB level
+   * since Postgres keeps enum values permanently).
+   */
+  CENEGENICS: 'cenegenics',
 } as const;
 export type LabPartner = (typeof LabPartner)[keyof typeof LabPartner];
 
