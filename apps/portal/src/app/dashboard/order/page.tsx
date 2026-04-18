@@ -102,9 +102,11 @@ export default function OrderPage() {
         },
       };
 
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-
-      const response = await fetch(`${apiUrl}/api/v1/orders`, {
+      // SECURITY NOTE: Use a relative path so the browser always hits the
+      // portal's own Next.js API route on the same origin. Avoids
+      // NEXT_PUBLIC_API_URL misconfiguration and keeps the auth cookie
+      // scope intact.
+      const response = await fetch('/api/v1/orders', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
