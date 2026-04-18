@@ -1,5 +1,6 @@
 import { CreateKitOrderSchema } from '@preciso/schemas';
 import type { CustodyEventType, OrderStatus } from '@preciso/types';
+import { getOrCreateRequestId, rateLimit } from '@preciso/utils';
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse, type NextRequest } from 'next/server';
 
@@ -31,11 +32,21 @@ import { NextResponse, type NextRequest } from 'next/server';
  * not scale under production load.
  */
 export async function POST(request: NextRequest) {
+  // Trace identifier propagated to every log line + error response body.
+  const requestId = getOrCreateRequestId(request.headers.get('x-request-id'));
+  const clientIp =
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    request.headers.get('x-real-ip') ||
+    'unknown';
+
   try {
     // ─── Auth ────────────────────────────────────────────────────────────
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+      return NextResponse.json(
+        { error: 'Authentication required.', requestId },
+        { status: 401, headers: { 'x-request-id': requestId } },
+      );
     }
     const token = authHeader.slice(7);
 
@@ -50,10 +61,41 @@ export async function POST(request: NextRequest) {
     } = await authClient.auth.getUser(token);
 
     if (authError || !user) {
-      return NextResponse.json({ error: 'Invalid or expired token.' }, { status: 401 });
+      return NextResponse.json(
+        { error: 'Invalid or expired token.', requestId },
+        { status: 401, headers: { 'x-request-id': requestId } },
+      );
     }
 
     const providerId = user.id;
+
+    // ─── Rate limit: 10 orders / hour / provider ─────────────────────────
+    // SECURITY NOTE: Key by authenticated user ID — never by anything from
+    // the request body — so an attacker cannot bypass by rotating the key.
+    const rl = await rateLimit({
+      identifier: `order-create:${providerId}`,
+      windowSeconds: 60 * 60,
+      maxRequests: 10,
+    });
+    if (!rl.success) {
+      console.warn('[api/orders] rate limit exceeded', { requestId, providerId });
+      return NextResponse.json(
+        {
+          error: 'Order rate limit exceeded. Maximum 10 orders per hour.',
+          requestId,
+          retryAfter: Math.ceil((rl.resetAt - Date.now()) / 1000),
+        },
+        {
+          status: 429,
+          headers: {
+            'x-request-id': requestId,
+            'x-ratelimit-limit': String(rl.limit),
+            'x-ratelimit-remaining': String(rl.remaining),
+            'x-ratelimit-reset': String(Math.ceil(rl.resetAt / 1000)),
+          },
+        },
+      );
+    }
 
     // ─── Idempotency header (present in current portal client) ───────────
     // SECURITY NOTE: Keep validating this so retries don't double-write.
@@ -61,8 +103,8 @@ export async function POST(request: NextRequest) {
     const idempotencyKey = request.headers.get('x-idempotency-key');
     if (!idempotencyKey || idempotencyKey.length < 10 || idempotencyKey.length > 100) {
       return NextResponse.json(
-        { error: 'X-Idempotency-Key header is required (10-100 chars).' },
-        { status: 400 },
+        { error: 'X-Idempotency-Key header is required (10-100 chars).', requestId },
+        { status: 400, headers: { 'x-request-id': requestId } },
       );
     }
 
@@ -71,8 +113,8 @@ export async function POST(request: NextRequest) {
     const parsed = CreateKitOrderSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
-        { error: 'Invalid order data.', details: parsed.error.issues },
-        { status: 400 },
+        { error: 'Invalid order data.', requestId, details: parsed.error.issues },
+        { status: 400, headers: { 'x-request-id': requestId } },
       );
     }
     const { patientRef, panelType, deliveryAddress } = parsed.data;
@@ -80,10 +122,10 @@ export async function POST(request: NextRequest) {
     // ─── Service role client (trust boundary — this handler re-checks ID)
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (!serviceRoleKey) {
-      console.error('[api/orders] SUPABASE_SERVICE_ROLE_KEY not configured');
+      console.error('[api/orders] SUPABASE_SERVICE_ROLE_KEY not configured', { requestId });
       return NextResponse.json(
-        { error: 'Server configuration error.' },
-        { status: 500 },
+        { error: 'Server configuration error.', requestId },
+        { status: 500, headers: { 'x-request-id': requestId } },
       );
     }
     const adminClient = createClient(
@@ -106,8 +148,11 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (orderError || !order) {
-      console.error('[api/orders] insert kit_orders failed', orderError);
-      return NextResponse.json({ error: 'Failed to create order.' }, { status: 500 });
+      console.error('[api/orders] insert kit_orders failed', { requestId, orderError });
+      return NextResponse.json(
+        { error: 'Failed to create order.', requestId },
+        { status: 500, headers: { 'x-request-id': requestId } },
+      );
     }
 
     const orderId = order.id as string;
@@ -130,14 +175,17 @@ export async function POST(request: NextRequest) {
       action: 'order.created',
       resource_type: 'kit_orders',
       resource_id: orderId,
-      ip_address: request.headers.get('x-forwarded-for') || null,
+      ip_address: clientIp !== 'unknown' ? clientIp : null,
       user_agent: request.headers.get('user-agent') || null,
     });
     if (auditError) {
-      console.error('[api/orders] insert audit_logs failed (non-blocking)', auditError);
+      console.error('[api/orders] insert audit_logs failed (non-blocking)', {
+        requestId,
+        auditError,
+      });
     }
 
-    console.warn('[Metric] order_created', { orderId, panelType, providerId });
+    console.warn('[Metric] order_created', { requestId, orderId, panelType, providerId });
 
     return NextResponse.json(
       {
@@ -145,14 +193,22 @@ export async function POST(request: NextRequest) {
         status: 'submitted',
         kitBarcode: null,
         estimatedShipDate: null,
+        requestId,
       },
-      { status: 201 },
+      {
+        status: 201,
+        headers: {
+          'x-request-id': requestId,
+          'x-ratelimit-limit': String(rl.limit),
+          'x-ratelimit-remaining': String(rl.remaining),
+        },
+      },
     );
   } catch (err) {
-    console.error('[api/orders] unexpected error', err);
+    console.error('[api/orders] unexpected error', { requestId, err });
     return NextResponse.json(
-      { error: 'An unexpected error occurred. Please try again later.' },
-      { status: 500 },
+      { error: 'An unexpected error occurred. Please try again later.', requestId },
+      { status: 500, headers: { 'x-request-id': requestId } },
     );
   }
 }

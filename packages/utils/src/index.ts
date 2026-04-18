@@ -1,5 +1,16 @@
 import { randomUUID } from 'crypto';
 
+export {
+  rateLimit,
+  incrementCounter,
+  resetCounter,
+  readCounter,
+  type RateLimitOptions,
+  type RateLimitResult,
+} from './rate-limit';
+
+export { getOrCreateRequestId } from './request-id';
+
 /**
  * Generates a UUID v4 for use as a primary key
  */
