@@ -68,10 +68,42 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // SECURITY NOTE: MFA step-up enforcement.
+  //   - If the admin has a verified TOTP factor, require aal2 before
+  //     any dashboard page renders. An aal1 session (password only) is
+  //     signed out and bounced to /login so the login route can issue
+  //     the MFA challenge properly.
+  //   - Skipped on /login so the code-entry flow can complete.
+  if (user && isAdmin && !isLogin) {
+    const { data: aalData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (
+      aalData?.currentLevel &&
+      aalData?.nextLevel &&
+      aalData.currentLevel !== aalData.nextLevel
+    ) {
+      console.warn('[admin/middleware] mfa step-up required, bouncing to /login', {
+        userId: user.id,
+        currentLevel: aalData.currentLevel,
+        nextLevel: aalData.nextLevel,
+      });
+      await supabase.auth.signOut();
+      const url = request.nextUrl.clone();
+      url.pathname = '/login';
+      url.searchParams.set('redirect', pathname);
+      url.searchParams.set('error', 'mfa_required');
+      return NextResponse.redirect(url);
+    }
+  }
+
   if (user && isAdmin && isLogin) {
-    const url = request.nextUrl.clone();
-    url.pathname = '/dashboard';
-    return NextResponse.redirect(url);
+    // Only bounce to /dashboard if the session is already at its max AAL;
+    // an aal1 admin still mid-challenge should stay on /login.
+    const { data: aalData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (!aalData || aalData.currentLevel === aalData.nextLevel) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/dashboard';
+      return NextResponse.redirect(url);
+    }
   }
 
   return supabaseResponse;

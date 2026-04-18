@@ -151,6 +151,41 @@ export async function POST(request: NextRequest) {
     }
 
     await Promise.all([resetCounter(emailKey), resetCounter(ipKey)]);
+
+    // ─── MFA required if enrolled ────────────────────────────────────────
+    // SECURITY NOTE: Admin accounts with a verified TOTP factor must
+    // step up to aal2 before we declare the login successful. Clearing
+    // counters above is safe: the user's password WAS valid. A failed
+    // MFA step increments the MFA-specific counters.
+    const { data: factorsData } = await supabase.auth.mfa.listFactors();
+    const verifiedTotp = factorsData?.all?.find(
+      (f) => f.factor_type === 'totp' && f.status === 'verified',
+    );
+    if (verifiedTotp) {
+      const { data: challenge, error: challengeErr } = await supabase.auth.mfa.challenge({
+        factorId: verifiedTotp.id,
+      });
+      if (challengeErr || !challenge) {
+        console.error('[admin/auth/login] mfa challenge failed', {
+          requestId,
+          challengeErr,
+        });
+        return NextResponse.json(
+          { error: 'Could not start MFA challenge. Please try again.', requestId },
+          { status: 500, headers: { 'x-request-id': requestId } },
+        );
+      }
+      return NextResponse.json(
+        {
+          requiresMfa: true,
+          factorId: verifiedTotp.id,
+          challengeId: challenge.id,
+          requestId,
+        },
+        { status: 200, headers: { 'x-request-id': requestId } },
+      );
+    }
+
     await writeAuditLog({
       actorId: data.user.id,
       actorType: 'admin',

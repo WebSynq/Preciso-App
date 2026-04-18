@@ -63,10 +63,35 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // MFA step-up — same contract as portal/admin.
+  if (user && isDeveloper && !isLogin) {
+    const { data: aalData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (
+      aalData?.currentLevel &&
+      aalData?.nextLevel &&
+      aalData.currentLevel !== aalData.nextLevel
+    ) {
+      console.warn('[dev/middleware] mfa step-up required, bouncing to /login', {
+        userId: user.id,
+        currentLevel: aalData.currentLevel,
+        nextLevel: aalData.nextLevel,
+      });
+      await supabase.auth.signOut();
+      const url = request.nextUrl.clone();
+      url.pathname = '/login';
+      url.searchParams.set('redirect', pathname);
+      url.searchParams.set('error', 'mfa_required');
+      return NextResponse.redirect(url);
+    }
+  }
+
   if (user && isDeveloper && isLogin) {
-    const url = request.nextUrl.clone();
-    url.pathname = '/dashboard';
-    return NextResponse.redirect(url);
+    const { data: aalData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (!aalData || aalData.currentLevel === aalData.nextLevel) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/dashboard';
+      return NextResponse.redirect(url);
+    }
   }
 
   return supabaseResponse;

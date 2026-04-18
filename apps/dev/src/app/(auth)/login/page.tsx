@@ -25,11 +25,9 @@ function LoginPageContent() {
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginPending, setLoginPending] = useState(false);
 
-  // SECURITY NOTE: The developer login route enforces password auth,
-  // the developer-role claim, AND a per-email / per-IP failed-attempt
-  // lockout — all server-side. A non-developer attempt still counts
-  // against the lockout so an attacker cannot differentiate 'wrong
-  // password' from 'wrong role' by watching the error.
+  const [mfa, setMfa] = useState<{ challengeId: string } | null>(null);
+  const [mfaCode, setMfaCode] = useState('');
+
   async function handleLogin(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoginError(null);
@@ -48,7 +46,15 @@ function LoginPageContent() {
       const result = (await res.json().catch(() => ({}))) as {
         error?: string;
         success?: boolean;
+        requiresMfa?: boolean;
+        challengeId?: string;
       };
+
+      if (result.requiresMfa && result.challengeId) {
+        setMfa({ challengeId: result.challengeId });
+        return;
+      }
+
       if (!res.ok || !result.success) {
         setLoginError(result.error || 'Invalid credentials.');
         return;
@@ -62,6 +68,34 @@ function LoginPageContent() {
     }
   }
 
+  async function handleMfaSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!mfa) return;
+    setLoginError(null);
+    setLoginPending(true);
+    try {
+      const res = await fetch('/api/auth/mfa/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ challengeId: mfa.challengeId, code: mfaCode }),
+      });
+      const result = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        success?: boolean;
+      };
+      if (!res.ok || !result.success) {
+        setLoginError(result.error || 'Invalid code. Please try again.');
+        return;
+      }
+      window.location.assign(redirectTo);
+    } catch (err) {
+      console.error('[dev/login] mfa verify unexpected error', err);
+      setLoginError('Unable to verify code right now. Please try again.');
+    } finally {
+      setLoginPending(false);
+    }
+  }
+
   return (
     <main className="flex min-h-screen items-center justify-center bg-ink px-4">
       <div className="w-full max-w-md">
@@ -70,56 +104,111 @@ function LoginPageContent() {
           <p className="mt-2 text-sm text-gray-400">Platform operations console</p>
         </div>
 
-        {(errorCode === 'not_authorized' || loginError) && (
-          <div className="mb-6 rounded-lg border border-red-900 bg-red-950/50 px-4 py-3 text-sm text-red-300">
-            {loginError || 'You are not authorized to access this console.'}
+        {(errorCode === 'not_authorized' || errorCode === 'mfa_required' || loginError) && (
+          <div
+            className={`mb-6 rounded-lg border px-4 py-3 text-sm ${
+              errorCode === 'mfa_required'
+                ? 'border-amber-900 bg-amber-950/50 text-amber-300'
+                : 'border-red-900 bg-red-950/50 text-red-300'
+            }`}
+          >
+            {loginError ||
+              (errorCode === 'mfa_required'
+                ? 'Please enter your authentication code to complete sign-in.'
+                : 'You are not authorized to access this console.')}
           </div>
         )}
 
-        <form
-          onSubmit={handleLogin}
-          className="rounded-xl border border-ink-200 bg-ink-100 p-8 shadow-xl"
-        >
-          <div className="mb-4">
-            <label htmlFor="email" className="mb-1 block text-sm font-medium text-gray-300">
-              Email
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              required
-              autoComplete="email"
-              className="w-full rounded-lg border border-ink-300 bg-ink-200 px-3 py-2.5 text-sm text-gray-100 transition focus:outline-none focus:ring-2 focus:ring-teal-500/50"
-            />
-          </div>
-
-          <div className="mb-6">
-            <label htmlFor="password" className="mb-1 block text-sm font-medium text-gray-300">
-              Password
-            </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              required
-              autoComplete="current-password"
-              className="w-full rounded-lg border border-ink-300 bg-ink-200 px-3 py-2.5 text-sm text-gray-100 transition focus:outline-none focus:ring-2 focus:ring-teal-500/50"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loginPending}
-            className="w-full rounded-lg bg-teal-500 px-4 py-3 font-medium text-white transition hover:bg-teal-600 disabled:cursor-not-allowed disabled:opacity-50"
+        {mfa ? (
+          <form
+            onSubmit={handleMfaSubmit}
+            className="rounded-xl border border-ink-200 bg-ink-100 p-8 shadow-xl"
           >
-            {loginPending ? 'Signing in...' : 'Sign In'}
-          </button>
+            <p className="mb-4 text-sm text-gray-300">
+              Enter the 6-digit code from your authenticator app.
+            </p>
+            <label htmlFor="mfa-code" className="mb-1 block text-sm font-medium text-gray-300">
+              Authentication code
+            </label>
+            <input
+              id="mfa-code"
+              name="code"
+              type="text"
+              inputMode="numeric"
+              pattern="\d{6}"
+              maxLength={6}
+              required
+              autoFocus
+              autoComplete="one-time-code"
+              value={mfaCode}
+              onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, ''))}
+              className="w-full rounded-lg border border-ink-300 bg-ink-200 px-3 py-2.5 font-mono text-lg tracking-widest text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500/50"
+            />
+            <button
+              type="submit"
+              disabled={loginPending || mfaCode.length !== 6}
+              className="mt-6 w-full rounded-lg bg-teal-500 px-4 py-3 font-medium text-white transition hover:bg-teal-600 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {loginPending ? 'Verifying...' : 'Verify and sign in'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMfa(null);
+                setMfaCode('');
+                setLoginError(null);
+              }}
+              className="mt-4 w-full text-center text-sm font-medium text-gray-500 hover:text-gray-300"
+            >
+              Cancel and start over
+            </button>
+          </form>
+        ) : (
+          <form
+            onSubmit={handleLogin}
+            className="rounded-xl border border-ink-200 bg-ink-100 p-8 shadow-xl"
+          >
+            <div className="mb-4">
+              <label htmlFor="email" className="mb-1 block text-sm font-medium text-gray-300">
+                Email
+              </label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                required
+                autoComplete="email"
+                className="w-full rounded-lg border border-ink-300 bg-ink-200 px-3 py-2.5 text-sm text-gray-100 transition focus:outline-none focus:ring-2 focus:ring-teal-500/50"
+              />
+            </div>
 
-          <p className="mt-6 text-center text-xs text-gray-500">
-            Developer access is non-clinical. No PHI is exposed on this console.
-          </p>
-        </form>
+            <div className="mb-6">
+              <label htmlFor="password" className="mb-1 block text-sm font-medium text-gray-300">
+                Password
+              </label>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                required
+                autoComplete="current-password"
+                className="w-full rounded-lg border border-ink-300 bg-ink-200 px-3 py-2.5 text-sm text-gray-100 transition focus:outline-none focus:ring-2 focus:ring-teal-500/50"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loginPending}
+              className="w-full rounded-lg bg-teal-500 px-4 py-3 font-medium text-white transition hover:bg-teal-600 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {loginPending ? 'Signing in...' : 'Sign In'}
+            </button>
+
+            <p className="mt-6 text-center text-xs text-gray-500">
+              Developer access is non-clinical. No PHI is exposed on this console.
+            </p>
+          </form>
+        )}
       </div>
     </main>
   );
