@@ -26,6 +26,17 @@ export const LabPartnerSchema = z.enum(['centogene', 'sampled', 'cenegenics']);
 
 export const ResultStatusSchema = z.enum(['pending', 'processing', 'complete', 'flagged', 'failed']);
 
+export const PaymentStatusSchema = z.enum([
+  'none',
+  'pending',
+  'processing',
+  'succeeded',
+  'failed',
+  'refunded',
+  'disputed',
+  'cancelled',
+]);
+
 export const CustodyEventTypeSchema = z.enum([
   'ordered',
   'kit_shipped',

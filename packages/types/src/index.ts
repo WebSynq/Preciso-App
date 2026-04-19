@@ -65,6 +65,19 @@ export const ResultStatus = {
 } as const;
 export type ResultStatus = (typeof ResultStatus)[keyof typeof ResultStatus];
 
+/** Stripe payment status mirrored in our DB */
+export const PaymentStatus = {
+  NONE: 'none',
+  PENDING: 'pending',
+  PROCESSING: 'processing',
+  SUCCEEDED: 'succeeded',
+  FAILED: 'failed',
+  REFUNDED: 'refunded',
+  DISPUTED: 'disputed',
+  CANCELLED: 'cancelled',
+} as const;
+export type PaymentStatus = (typeof PaymentStatus)[keyof typeof PaymentStatus];
+
 /** Chain-of-custody event types */
 export const CustodyEventType = {
   ORDERED: 'ordered',
@@ -112,6 +125,7 @@ export interface Provider {
   phin_status: PhinStatus;
   ghl_contact_id: string | null;
   vericense_identity_id: string | null;
+  stripe_customer_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -128,8 +142,29 @@ export interface KitOrder {
   tracking_number: string | null;
   delivery_address: DeliveryAddress | null;
   ghl_opportunity_id: string | null;
+  payment_status: PaymentStatus;
+  stripe_payment_intent_id: string | null;
+  amount_cents: number | null;
+  currency: string | null;
   created_at: string;
   updated_at: string;
+}
+
+/** payments table row — immutable ledger entry */
+export interface Payment {
+  id: string;
+  kit_order_id: string;
+  provider_id: string;
+  stripe_payment_intent_id: string;
+  stripe_charge_id: string | null;
+  stripe_invoice_id: string | null;
+  status: PaymentStatus;
+  amount_cents: number;
+  currency: string;
+  receipt_url: string | null;
+  failure_code: string | null;
+  failure_message: string | null;
+  created_at: string;
 }
 
 /** lab_results table row */
