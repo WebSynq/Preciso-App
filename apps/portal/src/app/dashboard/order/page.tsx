@@ -2,12 +2,13 @@
 
 import type { CreateKitOrderInput } from '@preciso/schemas';
 import type { DeliveryAddress, PanelType } from '@preciso/types';
-import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 import { createClient } from '@/lib/supabase/client';
 
-type Step = 1 | 2 | 3;
+import { PaymentStep } from './payment-step';
+
+type Step = 1 | 2 | 3 | 4;
 
 const PANEL_INFO: Record<string, { title: string; description: string }> = {
   newborn: {
@@ -29,10 +30,13 @@ const PANEL_INFO: Record<string, { title: string; description: string }> = {
 };
 
 export default function OrderPage() {
-  const router = useRouter();
   const [step, setStep] = useState<Step>(1);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Populated by Step 3 confirmation; consumed by Step 4 (payment).
+  const [orderId, setOrderId] = useState<string | null>(null);
+  const [orderAmountCents, setOrderAmountCents] = useState<number>(0);
 
   // Step 1 fields
   const [patientRef, setPatientRef] = useState('');
@@ -123,7 +127,11 @@ export default function OrderPage() {
         return;
       }
 
-      router.push(`/dashboard/orders/${result.orderId}?success=true`);
+      // Order persisted in 'pending' status. Advance to Step 4 (payment);
+      // the order is only forwarded to fulfilment after Stripe confirms.
+      setOrderId(result.orderId);
+      setOrderAmountCents(result.amountCents ?? 0);
+      setStep(4);
     } catch {
       setError('Network error. Please check your connection and try again.');
     } finally {
@@ -138,7 +146,7 @@ export default function OrderPage() {
 
       {/* Progress indicator */}
       <div className="mb-8 flex items-center gap-2">
-        {[1, 2, 3].map((s) => (
+        {[1, 2, 3, 4].map((s) => (
           <div key={s} className="flex flex-1 items-center gap-2">
             <div
               className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium ${
@@ -157,7 +165,7 @@ export default function OrderPage() {
                 s
               )}
             </div>
-            {s < 3 && (
+            {s < 4 && (
               <div className={`h-0.5 flex-1 ${s < step ? 'bg-teal' : 'bg-gray-200'}`} />
             )}
           </div>
@@ -417,10 +425,20 @@ export default function OrderPage() {
                 onClick={handleSubmit}
                 className="rounded-lg bg-teal px-8 py-2.5 text-sm font-medium text-white transition hover:bg-teal-600 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {submitting ? 'Submitting Order...' : 'Confirm & Submit Order'}
+                {submitting ? 'Saving order...' : 'Continue to Payment'}
               </button>
             </div>
           </div>
+        )}
+
+        {/* Step 4: Payment (Stripe Payment Element) */}
+        {step === 4 && orderId && panelType && (
+          <PaymentStep
+            orderId={orderId}
+            amountCents={orderAmountCents}
+            panelTitle={PANEL_INFO[panelType]?.title || panelType}
+            onBack={() => setStep(3)}
+          />
         )}
       </div>
     </div>

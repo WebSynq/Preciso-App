@@ -4,6 +4,8 @@ import { getOrCreateRequestId, rateLimit } from '@preciso/utils';
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse, type NextRequest } from 'next/server';
 
+import { getPanelPricing } from '@/lib/stripe/server';
+
 /**
  * POST /api/v1/orders
  *
@@ -135,14 +137,22 @@ export async function POST(request: NextRequest) {
     );
 
     // ─── Insert kit_orders ───────────────────────────────────────────────
+    // Orders start in 'pending' with payment_status 'none'. The order
+    // advances to 'submitted' only after the Stripe webhook confirms
+    // payment succeeded (see apps/portal/src/app/api/webhooks/stripe).
+    // This gates fulfilment on payment, so an unpaid order never reaches
+    // FirstSource.
+    const { amountCents } = getPanelPricing(panelType);
     const { data: order, error: orderError } = await adminClient
       .from('kit_orders')
       .insert({
         provider_id: providerId,
         patient_ref: patientRef,
         panel_type: panelType,
-        order_status: 'submitted' satisfies OrderStatus,
+        order_status: 'pending' satisfies OrderStatus,
         delivery_address: deliveryAddress,
+        amount_cents: amountCents,
+        currency: 'usd',
       })
       .select('id')
       .single();
@@ -190,9 +200,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         orderId,
-        status: 'submitted',
+        status: 'pending',
         kitBarcode: null,
         estimatedShipDate: null,
+        amountCents,
+        currency: 'usd',
         requestId,
       },
       {
